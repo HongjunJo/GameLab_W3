@@ -1,0 +1,283 @@
+using UnityEngine;
+
+/// <summary>
+/// 깃발 - 안전지대를 제공하고 다음 지역으로의 진행을 관리
+/// </summary>
+public class Flag : MonoBehaviour, IInteractable
+{
+    [Header("Flag Settings")]
+    [SerializeField] private BuildingRecipe activationRecipe;
+    [SerializeField] private bool isActive = false;
+    [SerializeField] private bool isMainFlag = false; // 시작 깃발인지
+    
+    [Header("Safe Zone")]
+    [SerializeField] private SafeZone safeZone;
+    [SerializeField] private float safeZoneRadius = 5f;
+    
+    [Header("Visual")]
+    [SerializeField] private SpriteRenderer spriteRenderer;
+    [SerializeField] private Sprite inactiveSprite;
+    [SerializeField] private Sprite activeSprite;
+    [SerializeField] private GameObject activationEffect;
+    [SerializeField] private GameObject flagLight; // Light GameObject for visual effect
+    
+    [Header("Progression")]
+    [SerializeField] private Flag nextFlag;
+    [SerializeField] private Transform playerSpawnPoint;
+    
+    public bool IsActive => isActive;
+    public SafeZone SafeZone => safeZone;
+    public Flag NextFlag => nextFlag;
+    
+    private void Awake()
+    {
+        if (spriteRenderer == null)
+        {
+            spriteRenderer = GetComponent<SpriteRenderer>();
+        }
+        
+        // SafeZone 컴포넌트 자동 설정
+        if (safeZone == null)
+        {
+            safeZone = GetComponent<SafeZone>();
+            if (safeZone == null)
+            {
+                safeZone = gameObject.AddComponent<SafeZone>();
+            }
+        }
+        
+        // 메인 깃발은 처음부터 활성화
+        if (isMainFlag)
+        {
+            ActivateFlag();
+        }
+        else
+        {
+            UpdateVisual();
+        }
+    }
+    
+    private void Start()
+    {
+        // 콜라이더 설정
+        Collider2D col = GetComponent<Collider2D>();
+        if (col == null)
+        {
+            col = gameObject.AddComponent<CircleCollider2D>();
+            col.isTrigger = true;
+        }
+        
+        // SafeZone 반지름 설정
+        if (safeZone != null)
+        {
+            safeZone.SetRadius(safeZoneRadius);
+        }
+    }
+    
+    public bool CanInteract()
+    {
+        if (isActive) return false; // 이미 활성화된 깃발은 상호작용 불가
+        if (isMainFlag) return false; // 메인 깃발은 상호작용 불가
+        
+        // 활성화 레시피가 있고 비용을 지불할 수 있는지 확인
+        return activationRecipe != null && activationRecipe.CanAfford();
+    }
+    
+    public void Interact()
+    {
+        if (CanInteract())
+        {
+            ActivateFlag();
+        }
+    }
+    
+    public string GetInteractionText()
+    {
+        if (isActive)
+        {
+            return "Active Flag";
+        }
+        
+        if (isMainFlag)
+        {
+            return "Main Base";
+        }
+        
+        if (activationRecipe != null)
+        {
+            if (activationRecipe.CanAfford())
+            {
+                return "Activate Flag";
+            }
+            else
+            {
+                return "Need more resources to activate";
+            }
+        }
+        
+        return "Inactive Flag";
+    }
+    
+    /// <summary>
+    /// 깃발 활성화
+    /// </summary>
+    public void ActivateFlag()
+    {
+        // 메인 깃발이 아닌 경우에만 비용 소모
+        if (!isMainFlag && activationRecipe != null)
+        {
+            if (!activationRecipe.ConsumeCost()) return;
+        }
+        
+        isActive = true;
+        
+        // SafeZone 활성화
+        if (safeZone != null)
+        {
+            safeZone.ActivateSafeZone();
+        }
+        
+        // 활성화 이펙트
+        if (activationEffect != null)
+        {
+            Instantiate(activationEffect, transform.position, Quaternion.identity);
+        }
+        
+        // 비주얼 업데이트
+        UpdateVisual();
+        
+        // 이벤트 발생
+        GameEvents.BuildingActivated($"Flag_{gameObject.name}");
+        
+        Debug.Log($"Flag activated: {gameObject.name}");
+    }
+    
+    /// <summary>
+    /// 깃발 비활성화
+    /// </summary>
+    public void DeactivateFlag()
+    {
+        if (isMainFlag) return; // 메인 깃발은 비활성화 불가
+        
+        isActive = false;
+        
+        // SafeZone 비활성화
+        if (safeZone != null)
+        {
+            safeZone.DeactivateSafeZone();
+        }
+        
+        // 비주얼 업데이트
+        UpdateVisual();
+        
+        Debug.Log($"Flag deactivated: {gameObject.name}");
+    }
+    
+    /// <summary>
+    /// 비주얼 업데이트
+    /// </summary>
+    private void UpdateVisual()
+    {
+        if (spriteRenderer != null)
+        {
+            if (isActive && activeSprite != null)
+            {
+                spriteRenderer.sprite = activeSprite;
+                spriteRenderer.color = Color.white;
+            }
+            else if (inactiveSprite != null)
+            {
+                spriteRenderer.sprite = inactiveSprite;
+                spriteRenderer.color = Color.gray;
+            }
+        }
+        
+        // 라이트 설정
+        if (flagLight != null)
+        {
+            flagLight.SetActive(isActive);
+            // 라이트의 색상을 변경하려면 Light 컴포넌트나 SpriteRenderer를 사용
+            SpriteRenderer lightRenderer = flagLight.GetComponent<SpriteRenderer>();
+            if (lightRenderer != null)
+            {
+                lightRenderer.color = isActive ? Color.green : Color.red;
+            }
+        }
+    }
+    
+    /// <summary>
+    /// 다음 깃발 설정
+    /// </summary>
+    public void SetNextFlag(Flag flag)
+    {
+        nextFlag = flag;
+    }
+    
+    /// <summary>
+    /// 플레이어 스폰 포인트 가져오기
+    /// </summary>
+    public Vector3 GetSpawnPosition()
+    {
+        if (playerSpawnPoint != null)
+        {
+            return playerSpawnPoint.position;
+        }
+        return transform.position;
+    }
+    
+    /// <summary>
+    /// 플레이어를 이 깃발로 이동
+    /// </summary>
+    public void TeleportPlayerHere()
+    {
+        GameObject player = GameObject.FindGameObjectWithTag("Player");
+        if (player != null)
+        {
+            player.transform.position = GetSpawnPosition();
+            
+            // PlayerStatus에 리스폰 포인트 설정
+            PlayerStatus playerStatus = player.GetComponent<PlayerStatus>();
+            if (playerStatus != null)
+            {
+                playerStatus.SetRespawnPoint(transform, safeZone);
+            }
+            
+            Debug.Log($"Player teleported to {gameObject.name}");
+        }
+    }
+    
+    /// <summary>
+    /// 안전지대 반지름 설정
+    /// </summary>
+    public void SetSafeZoneRadius(float radius)
+    {
+        safeZoneRadius = radius;
+        if (safeZone != null)
+        {
+            safeZone.SetRadius(radius);
+        }
+    }
+    
+    /// <summary>
+    /// 테스트용 활성화
+    /// </summary>
+    [ContextMenu("Activate Flag (Test)")]
+    public void ActivateFlagTest()
+    {
+        ActivateFlag();
+    }
+    
+    private void OnDrawGizmosSelected()
+    {
+        // 안전지대 범위 표시
+        Gizmos.color = isActive ? Color.green : Color.red;
+        Gizmos.DrawWireSphere(transform.position, safeZoneRadius);
+        
+        // 다음 깃발로의 연결선 표시
+        if (nextFlag != null)
+        {
+            Gizmos.color = Color.blue;
+            Gizmos.DrawLine(transform.position, nextFlag.transform.position);
+        }
+    }
+}

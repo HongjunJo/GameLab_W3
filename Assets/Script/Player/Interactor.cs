@@ -1,0 +1,173 @@
+using UnityEngine;
+
+/// <summary>
+/// 플레이어의 상호작용 로직을 담당하는 컴포넌트
+/// </summary>
+public class Interactor : MonoBehaviour
+{
+    [Header("Interaction Settings")]
+    [SerializeField] private float interactionRange = 2f;
+    [SerializeField] private LayerMask interactionLayerMask = -1;
+    [SerializeField] private KeyCode interactionKey = KeyCode.E;
+    
+    [Header("Detection Settings")]
+    [SerializeField] private Transform interactionPoint;
+    [SerializeField] private bool showInteractionRange = true;
+    
+    [Header("UI")]
+    [SerializeField] private GameObject interactionPrompt;
+    [SerializeField] private UnityEngine.UI.Text promptText;
+    
+    private IInteractable currentInteractable;
+    private bool isInteractionKeyPressed = false;
+    
+    private void Awake()
+    {
+        // 상호작용 포인트가 설정되지 않았다면 자신의 Transform 사용
+        if (interactionPoint == null)
+        {
+            interactionPoint = transform;
+        }
+        
+        // UI 초기화
+        if (interactionPrompt != null)
+        {
+            interactionPrompt.SetActive(false);
+        }
+    }
+    
+    private void Update()
+    {
+        HandleInput();
+        DetectInteractable();
+        UpdateUI();
+    }
+    
+    /// <summary>
+    /// 입력 처리
+    /// </summary>
+    private void HandleInput()
+    {
+        isInteractionKeyPressed = Input.GetKeyDown(interactionKey);
+        
+        if (isInteractionKeyPressed && currentInteractable != null && currentInteractable.CanInteract())
+        {
+            currentInteractable.Interact();
+        }
+    }
+    
+    /// <summary>
+    /// 상호작용 가능한 오브젝트 감지
+    /// </summary>
+    private void DetectInteractable()
+    {
+        // 이전 프레임의 상호작용 대상
+        IInteractable previousInteractable = currentInteractable;
+        currentInteractable = null;
+        
+        // 상호작용 범위 내의 모든 콜라이더 검사
+        Collider2D[] colliders = Physics2D.OverlapCircleAll(
+            interactionPoint.position, 
+            interactionRange, 
+            interactionLayerMask
+        );
+        
+        float closestDistance = float.MaxValue;
+        IInteractable closestInteractable = null;
+        
+        foreach (Collider2D col in colliders)
+        {
+            IInteractable interactable = col.GetComponent<IInteractable>();
+            if (interactable != null && interactable.CanInteract())
+            {
+                float distance = Vector2.Distance(interactionPoint.position, col.transform.position);
+                if (distance < closestDistance)
+                {
+                    closestDistance = distance;
+                    closestInteractable = interactable;
+                }
+            }
+        }
+        
+        currentInteractable = closestInteractable;
+        
+        // 상호작용 대상이 바뀌었다면 로그 출력
+        if (currentInteractable != previousInteractable)
+        {
+            if (currentInteractable != null)
+            {
+                Debug.Log($"Can interact with: {currentInteractable.GetInteractionText()}");
+            }
+        }
+    }
+    
+    /// <summary>
+    /// UI 업데이트
+    /// </summary>
+    private void UpdateUI()
+    {
+        if (interactionPrompt == null) return;
+        
+        bool hasInteractable = currentInteractable != null && currentInteractable.CanInteract();
+        interactionPrompt.SetActive(hasInteractable);
+        
+        if (hasInteractable && promptText != null)
+        {
+            promptText.text = $"Press {interactionKey} to {currentInteractable.GetInteractionText()}";
+        }
+    }
+    
+    /// <summary>
+    /// 상호작용 범위 설정
+    /// </summary>
+    public void SetInteractionRange(float newRange)
+    {
+        interactionRange = newRange;
+    }
+    
+    /// <summary>
+    /// 상호작용 키 설정
+    /// </summary>
+    public void SetInteractionKey(KeyCode newKey)
+    {
+        interactionKey = newKey;
+    }
+    
+    /// <summary>
+    /// 현재 상호작용 가능한 오브젝트 반환
+    /// </summary>
+    public IInteractable GetCurrentInteractable()
+    {
+        return currentInteractable;
+    }
+    
+    /// <summary>
+    /// 강제로 상호작용 실행 (외부에서 호출용)
+    /// </summary>
+    public void ForceInteract()
+    {
+        if (currentInteractable != null && currentInteractable.CanInteract())
+        {
+            currentInteractable.Interact();
+        }
+    }
+    
+    /// <summary>
+    /// 상호작용 범위 시각화
+    /// </summary>
+    private void OnDrawGizmosSelected()
+    {
+        if (!showInteractionRange) return;
+        
+        Vector3 position = interactionPoint != null ? interactionPoint.position : transform.position;
+        
+        Gizmos.color = currentInteractable != null ? Color.green : Color.white;
+        Gizmos.DrawWireSphere(position, interactionRange);
+        
+        // 반투명 원 그리기
+        Color fillColor = Gizmos.color;
+        fillColor.a = 0.1f;
+        Gizmos.color = fillColor;
+        Gizmos.DrawSphere(position, interactionRange);
+    }
+}
