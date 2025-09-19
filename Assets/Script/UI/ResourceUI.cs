@@ -18,10 +18,16 @@ public class ResourceUI : MonoBehaviour
     
     private void Start()
     {
-        // 초기화 시 빈 텍스트로 설정
+        // 초기화 시 None으로 설정
         if (resourceText != null)
         {
-            resourceText.text = "Resources: Loading...";
+            resourceText.text = "Resources: None";
+        }
+        
+        // ResourceManager가 이미 자원을 가지고 있다면 즉시 업데이트
+        if (ResourceManager.Instance != null)
+        {
+            UpdateDisplay(ResourceManager.Instance.GetAllResources());
         }
     }
     
@@ -33,8 +39,9 @@ public class ResourceUI : MonoBehaviour
         
         foreach (var kvp in resources)
         {
-            if (kvp.Key != null && kvp.Value > 0)
+            if (kvp.Key != null)
             {
+                // 한 번이라도 습득한 자원은 0이어도 표시
                 displayText += $"{kvp.Key.mineralName}: {kvp.Value}\n";
             }
         }

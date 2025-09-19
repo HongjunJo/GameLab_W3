@@ -20,6 +20,9 @@ public static class GameEvents
     public static event Action<float, float> OnHealthChanged; // currentHP, maxHP
     public static event Action OnPlayerDied;
     
+    // 위험도 관련 이벤트
+    public static event Action<float, float> OnDangerChanged; // currentDanger, maxDanger
+    
     // 생산 관련 이벤트
     public static event Action<MineralData, int> OnMineralProduced;
     public static event Action<string> OnBuildingActivated; // building name
@@ -59,6 +62,12 @@ public static class GameEvents
     public static void PlayerDied()
     {
         OnPlayerDied?.Invoke();
+    }
+    
+    // 위험도 이벤트 발생 메서드들
+    public static void DangerChanged(float currentDanger, float maxDanger)
+    {
+        OnDangerChanged?.Invoke(currentDanger, maxDanger);
     }
     
     // 생산 이벤트 발생 메서드들

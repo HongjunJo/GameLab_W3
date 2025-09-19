@@ -105,6 +105,10 @@ public class PowerGenerator : MonoBehaviour, IInteractable
             // 최대 전력량 증가
             float powerIncrease = recipe.powerIncrease;
             PowerManager.Instance.UpgradeMaxPower(powerIncrease);
+            
+            // 즉시 전력 생산 (업그레이드 보상)
+            PowerManager.Instance.GeneratePower(powerIncrease);
+            
             totalPowerGenerated += powerIncrease;
             
             // 비주얼 업데이트
@@ -113,7 +117,7 @@ public class PowerGenerator : MonoBehaviour, IInteractable
             // 이벤트 발생
             GameEvents.BuildingActivated($"PowerGenerator_Lv{currentLevel}");
             
-            Debug.Log($"Generator upgraded to level {currentLevel}! Power increased by {powerIncrease}");
+            Debug.Log($"Generator upgraded to level {currentLevel}! Power capacity and generation increased by {powerIncrease}");
         }
     }
     
@@ -183,8 +187,9 @@ public class PowerGenerator : MonoBehaviour, IInteractable
             currentLevel++;
             UpdateVisual();
             
-            // 테스트용으로 50씩 증가
+            // 테스트용으로 50씩 증가 (용량 + 즉시 생산)
             PowerManager.Instance.UpgradeMaxPower(50f);
+            PowerManager.Instance.GeneratePower(50f);
             totalPowerGenerated += 50f;
         }
     }

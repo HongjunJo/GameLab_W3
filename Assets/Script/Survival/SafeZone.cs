@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 /// <summary>
 /// 안전지대의 범위를 정의하고 플레이어의 출입을 감지
@@ -13,12 +14,20 @@ public class SafeZone : MonoBehaviour
     [Header("Visual Settings")]
     [SerializeField] private Color safeZoneColor = Color.green;
     [SerializeField] private bool showGizmo = true;
+    [SerializeField] private bool showRuntimeVisual = true; // 게임 실행 중 범위 표시
+    [SerializeField] private Material safeZoneMaterial; // 범위 표시용 머티리얼
+    [SerializeField] private bool enableMerging = true; // SafeZone 합치기 활성화
+    [SerializeField] private float mergeCheckInterval = 1f; // 합치기 체크 간격
     
     [Header("Effects")]
     [SerializeField] private GameObject enterEffect;
     [SerializeField] private GameObject exitEffect;
     
     private bool playerInSafeZone = false;
+    private LineRenderer lineRenderer; // 런타임 범위 표시용
+    private LineRenderer mergedLineRenderer; // 합쳐진 영역 표시용
+    private List<SafeZone> overlappingSafeZones = new List<SafeZone>(); // 겹치는 SafeZone들
+    private float lastMergeCheck = 0f;
     
     public bool IsActive 
     { 
@@ -31,6 +40,15 @@ public class SafeZone : MonoBehaviour
     }
     
     public bool PlayerInSafeZone => playerInSafeZone;
+    
+    private void Update()
+    {
+        if (enableMerging && Time.time - lastMergeCheck > mergeCheckInterval)
+        {
+            CheckForOverlappingSafeZones();
+            lastMergeCheck = Time.time;
+        }
+    }
     
     private void Awake()
     {
@@ -47,6 +65,230 @@ public class SafeZone : MonoBehaviour
         {
             boxCol.size = safeZoneSize;
         }
+        
+        // 런타임 시각화 설정
+        SetupRuntimeVisual();
+    }
+    
+    private void SetupRuntimeVisual()
+    {
+        if (!showRuntimeVisual) return;
+        
+        // LineRenderer 컴포넌트 추가 또는 가져오기
+        lineRenderer = GetComponent<LineRenderer>();
+        if (lineRenderer == null)
+        {
+            lineRenderer = gameObject.AddComponent<LineRenderer>();
+        }
+        
+        // LineRenderer 설정
+        lineRenderer.material = safeZoneMaterial;
+        lineRenderer.startColor = safeZoneColor;
+        lineRenderer.endColor = safeZoneColor;
+        lineRenderer.startWidth = 0.1f;
+        lineRenderer.endWidth = 0.1f;
+        lineRenderer.loop = true; // 사각형을 닫기 위해
+        lineRenderer.useWorldSpace = false; // 로컬 좌표 사용
+        lineRenderer.positionCount = 4; // 사각형은 4개의 점
+        
+        // 기본 머티리얼이 없으면 스프라이트 기본 머티리얼 사용
+        if (lineRenderer.material == null)
+        {
+            lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
+        }
+        
+        // 합쳐진 영역용 LineRenderer 설정
+        SetupMergedVisual();
+        
+        UpdateRuntimeVisual();
+    }
+    
+    private void UpdateRuntimeVisual()
+    {
+        if (lineRenderer == null || !showRuntimeVisual) return;
+        
+        // 사각형 꼭짓점 계산
+        float halfWidth = safeZoneSize.x * 0.5f;
+        float halfHeight = safeZoneSize.y * 0.5f;
+        
+        Vector3[] positions = new Vector3[4]
+        {
+            new Vector3(-halfWidth, -halfHeight, 0), // 왼쪽 아래
+            new Vector3(halfWidth, -halfHeight, 0),  // 오른쪽 아래
+            new Vector3(halfWidth, halfHeight, 0),   // 오른쪽 위
+            new Vector3(-halfWidth, halfHeight, 0)   // 왼쪽 위
+        };
+        
+        lineRenderer.SetPositions(positions);
+        
+        // 활성화 상태에 따라 색상 변경 및 표시/숨김
+        if (isActive)
+        {
+            Color visualColor = safeZoneColor;
+            visualColor.a = 0.7f; // 약간 투명하게
+            lineRenderer.startColor = visualColor;
+            lineRenderer.endColor = visualColor;
+            lineRenderer.enabled = showRuntimeVisual; // 활성화된 경우에만 표시
+        }
+        else
+        {
+            lineRenderer.enabled = false; // 비활성화된 경우 완전히 숨김
+        }
+    }
+    
+    private void SetupMergedVisual()
+    {
+        if (!enableMerging) return;
+        
+        // 합쳐진 영역용 LineRenderer 생성 (자식 오브젝트로)
+        GameObject mergedVisualObj = new GameObject("MergedSafeZoneVisual");
+        mergedVisualObj.transform.SetParent(transform);
+        mergedVisualObj.transform.localPosition = Vector3.zero;
+        
+        mergedLineRenderer = mergedVisualObj.AddComponent<LineRenderer>();
+        mergedLineRenderer.material = safeZoneMaterial;
+        
+        // 합쳐진 영역은 더 두껍고 다른 색상으로
+        Color mergedColor = safeZoneColor;
+        mergedColor.a = 0.3f; // 더 투명하게
+        mergedLineRenderer.startColor = mergedColor;
+        mergedLineRenderer.endColor = mergedColor;
+        mergedLineRenderer.startWidth = 0.15f; // 더 두껍게
+        mergedLineRenderer.endWidth = 0.15f;
+        mergedLineRenderer.loop = true;
+        mergedLineRenderer.useWorldSpace = true; // 월드 좌표 사용
+        
+        if (mergedLineRenderer.material == null)
+        {
+            mergedLineRenderer.material = new Material(Shader.Find("Sprites/Default"));
+        }
+        
+        mergedLineRenderer.enabled = false; // 기본적으로 비활성화
+    }
+    
+    private void CheckForOverlappingSafeZones()
+    {
+        if (!enableMerging || !isActive) return;
+        
+        overlappingSafeZones.Clear();
+        
+        // 모든 SafeZone 찾기
+        SafeZone[] allSafeZones = FindObjectsByType<SafeZone>(FindObjectsSortMode.None);
+        
+        foreach (SafeZone otherZone in allSafeZones)
+        {
+            if (otherZone == this || !otherZone.IsActive) continue;
+            
+            // 겹침 체크
+            if (IsOverlapping(otherZone))
+            {
+                overlappingSafeZones.Add(otherZone);
+            }
+        }
+        
+        UpdateMergedVisual();
+    }
+    
+    private bool IsOverlapping(SafeZone otherZone)
+    {
+        // 두 사각형이 겹치는지 체크
+        Bounds thisBounds = GetBounds();
+        Bounds otherBounds = otherZone.GetBounds();
+        
+        return thisBounds.Intersects(otherBounds);
+    }
+    
+    private Bounds GetBounds()
+    {
+        Vector3 center = transform.position;
+        Vector3 size = new Vector3(safeZoneSize.x, safeZoneSize.y, 0);
+        return new Bounds(center, size);
+    }
+    
+    private void UpdateMergedVisual()
+    {
+        if (mergedLineRenderer == null || !enableMerging) return;
+        
+        // 현재 SafeZone이 비활성화되어 있으면 모든 시각화 숨김
+        if (!isActive)
+        {
+            if (lineRenderer != null)
+            {
+                lineRenderer.enabled = false;
+            }
+            mergedLineRenderer.enabled = false;
+            return;
+        }
+        
+        // 활성화된 SafeZone들만 필터링
+        List<SafeZone> activeSafeZones = new List<SafeZone>();
+        foreach (SafeZone zone in overlappingSafeZones)
+        {
+            if (zone.IsActive)
+            {
+                activeSafeZones.Add(zone);
+            }
+        }
+        
+        if (activeSafeZones.Count > 0)
+        {
+            // 개별 SafeZone 라인 숨기기
+            if (lineRenderer != null)
+            {
+                lineRenderer.enabled = false;
+            }
+            
+            // 합쳐진 영역의 외곽선 계산 및 표시 (활성화된 것들만)
+            List<Vector3> mergedOutline = CalculateMergedOutline(activeSafeZones);
+            if (mergedOutline.Count > 0)
+            {
+                mergedLineRenderer.positionCount = mergedOutline.Count;
+                mergedLineRenderer.SetPositions(mergedOutline.ToArray());
+                mergedLineRenderer.enabled = showRuntimeVisual;
+            }
+        }
+        else
+        {
+            // 겹치는 활성화된 SafeZone이 없으면 개별 라인 표시
+            if (lineRenderer != null)
+            {
+                lineRenderer.enabled = showRuntimeVisual && isActive; // 활성화된 경우에만
+            }
+            mergedLineRenderer.enabled = false;
+        }
+    }
+    
+    private List<Vector3> CalculateMergedOutline(List<SafeZone> safeZonesToMerge = null)
+    {
+        List<Vector3> outline = new List<Vector3>();
+        
+        // 사용할 SafeZone 리스트 결정
+        List<SafeZone> zonesToUse = safeZonesToMerge ?? overlappingSafeZones;
+        
+        // 간단한 구현: 모든 SafeZone의 경계를 포함하는 최대 사각형 계산
+        float minX = transform.position.x - safeZoneSize.x * 0.5f;
+        float maxX = transform.position.x + safeZoneSize.x * 0.5f;
+        float minY = transform.position.y - safeZoneSize.y * 0.5f;
+        float maxY = transform.position.y + safeZoneSize.y * 0.5f;
+        
+        foreach (SafeZone zone in zonesToUse)
+        {
+            Vector3 pos = zone.transform.position;
+            Vector2 size = zone.safeZoneSize;
+            
+            minX = Mathf.Min(minX, pos.x - size.x * 0.5f);
+            maxX = Mathf.Max(maxX, pos.x + size.x * 0.5f);
+            minY = Mathf.Min(minY, pos.y - size.y * 0.5f);
+            maxY = Mathf.Max(maxY, pos.y + size.y * 0.5f);
+        }
+        
+        // 합쳐진 사각형의 꼭짓점들
+        outline.Add(new Vector3(minX, minY, 0)); // 왼쪽 아래
+        outline.Add(new Vector3(maxX, minY, 0)); // 오른쪽 아래
+        outline.Add(new Vector3(maxX, maxY, 0)); // 오른쪽 위
+        outline.Add(new Vector3(minX, maxY, 0)); // 왼쪽 위
+        
+        return outline;
     }
     
     private void OnTriggerEnter2D(Collider2D other)
@@ -112,6 +354,8 @@ public class SafeZone : MonoBehaviour
     public void ActivateSafeZone()
     {
         IsActive = true;
+        UpdateRuntimeVisual(); // 시각적 업데이트
+        CheckForOverlappingSafeZones(); // 합쳐진 영역 업데이트
         Debug.Log($"Safe zone activated: {gameObject.name}");
     }
     
@@ -132,6 +376,8 @@ public class SafeZone : MonoBehaviour
             }
         }
         
+        UpdateRuntimeVisual(); // 시각적 업데이트
+        CheckForOverlappingSafeZones(); // 합쳐진 영역 업데이트
         Debug.Log($"Safe zone deactivated: {gameObject.name}");
     }
     
@@ -147,6 +393,27 @@ public class SafeZone : MonoBehaviour
         {
             boxCol.size = safeZoneSize;
         }
+        
+        UpdateRuntimeVisual(); // 시각적 업데이트
+        CheckForOverlappingSafeZones(); // 합쳐진 영역 업데이트
+    }
+    
+    /// <summary>
+    /// 런타임 시각적 표시 토글
+    /// </summary>
+    public void ToggleRuntimeVisual()
+    {
+        showRuntimeVisual = !showRuntimeVisual;
+        UpdateRuntimeVisual();
+    }
+    
+    /// <summary>
+    /// 런타임 시각적 표시 설정
+    /// </summary>
+    public void SetRuntimeVisual(bool show)
+    {
+        showRuntimeVisual = show;
+        UpdateRuntimeVisual();
     }
     
     private void OnDrawGizmosSelected()

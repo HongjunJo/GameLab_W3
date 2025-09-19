@@ -48,6 +48,13 @@ public class ResourceManager : MonoBehaviour
         DontDestroyOnLoad(gameObject);
     }
     
+    private void Start()
+    {
+        // 게임 시작 시 초기 자원 상태를 UI에 알림
+        GameEvents.ResourceChanged(new Dictionary<MineralData, int>(resources));
+        Debug.Log("ResourceManager initialized - initial resources sent to UI");
+    }
+    
     /// <summary>
     /// 자원 추가
     /// </summary>
@@ -81,9 +88,10 @@ public class ResourceManager : MonoBehaviour
         if (!HasEnoughResource(mineral, amount)) return false;
         
         resources[mineral] -= amount;
-        if (resources[mineral] <= 0)
+        // 한 번이라도 습득한 자원은 0이 되어도 딕셔너리에서 제거하지 않음
+        if (resources[mineral] < 0)
         {
-            resources.Remove(mineral);
+            resources[mineral] = 0; // 음수가 되지 않도록 안전장치
         }
         
         UpdateDebugDisplay();

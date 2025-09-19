@@ -18,3 +18,6 @@ MonoBehaviour:
   mineralColor: {r: 0.6528301, g: 0.6528301, b: 0.6528301, a: 1}
   isSpecialMineral: 0
   baseValue: 10
+  maxHP: 3
+  miningResistance: 1
+  isMiningRequired: 1

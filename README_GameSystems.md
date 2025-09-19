@@ -325,13 +325,29 @@ cameraController.SnapToPlayer();
    - **Is Active**: true (안전지대 활성화 여부)
    - **Safe Zone Size**: (6.0, 6.0) (사각형 안전지대 크기 - Width, Height)
 2. **Visual Settings**:
-   - **Safe Zone Color**: Green (기즈모 표시 색상)
+   - **Safe Zone Color**: Green (범위 표시 색상)
    - **Show Gizmo**: true (에디터에서 범위 표시)
+   - **Show Runtime Visual**: true ✨ **NEW!** (게임 실행 중 범위 표시)
+   - **Safe Zone Material**: 범위 라인 렌더링용 머티리얼 (선택사항)
+   - **Enable Merging**: true 🆕 **NEW!** (SafeZone 합치기 활성화)
+   - **Merge Check Interval**: 1.0 (합치기 체크 간격, 초 단위)
 3. **Effects** (선택사항):
    - **Enter Effect**: 안전지대 입장 시 이펙트
    - **Exit Effect**: 안전지대 퇴장 시 이펙트
 
 💡 **Box Collider 2D 사용**: Circle Collider 대신 Box Collider 2D를 사용하여 명확한 사각형 범위를 제공합니다.
+
+🎮 **실시간 범위 표시**: **Show Runtime Visual**을 활성화하면 게임 플레이 중에도 SafeZone의 범위를 시각적으로 확인할 수 있습니다!
+- ✅ **활성화된 안전지대**: 초록색 테두리로 표시
+- ❌ **비활성화된 안전지대**: 🚫 **범위 완전히 숨김** (더 이상 빨간색으로 표시하지 않음)
+- 🔧 **자동 LineRenderer**: SafeZone이 자동으로 LineRenderer 컴포넌트를 추가하여 범위를 그립니다
+
+🔗 **SafeZone 스마트 합치기**: **Enable Merging**을 활성화하면 겹치는 SafeZone들이 하나의 큰 안전지대처럼 표시됩니다!
+- 🎯 **스마트 감지**: 주기적으로 겹치는 SafeZone을 자동 감지
+- 🖼️ **통합 시각화**: 겹치는 영역들을 하나의 큰 사각형으로 표시
+- 💫 **동적 업데이트**: SafeZone 활성화/비활성화 시 실시간으로 합쳐진 영역 업데이트
+- 🎨 **차별화된 표시**: 합쳐진 영역은 더 두껍고 투명한 라인으로 표시
+- 🔒 **활성화 필터링**: 비활성화된 SafeZone은 합치기에서 자동 제외
 
 #### 🔧 깃발 비주얼 만들기 (간단한 3D 캡슐 방식)
 **Flag 오브젝트 아래에:**

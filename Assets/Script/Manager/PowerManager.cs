@@ -25,8 +25,8 @@ public class PowerManager : MonoBehaviour
     }
     
     [Header("Power Settings")]
-    [SerializeField] private float maxPower = 100f;
-    [SerializeField] private float currentPower = 100f;
+    [SerializeField] private float maxPower = 0f; // 초기값 0으로 변경
+    [SerializeField] private float currentPower = 0f; // 초기값 0으로 변경
     
     [Header("Debug Info")]
     [SerializeField] private float powerUsageHistory = 0f;
@@ -45,8 +45,9 @@ public class PowerManager : MonoBehaviour
         _instance = this;
         DontDestroyOnLoad(gameObject);
         
-        // 시작시 최대 전력으로 설정
-        currentPower = maxPower;
+        // 초기에는 0/0으로 시작
+        currentPower = 0f;
+        maxPower = 0f;
     }
     
     private void Start()
@@ -87,11 +88,26 @@ public class PowerManager : MonoBehaviour
         float oldMaxPower = maxPower;
         maxPower += increaseAmount;
         
-        // 현재 전력도 증가량만큼 추가 (업그레이드 보상)
-        currentPower += increaseAmount;
+        // 현재 전력은 변경하지 않음 (최대 용량만 증가)
+        // 현재 전력이 새로운 최대값을 초과하지 않도록 클램프
+        currentPower = Mathf.Min(currentPower, maxPower);
         
         GameEvents.PowerChanged(currentPower, maxPower);
-        Debug.Log($"Power upgraded! {oldMaxPower} -> {maxPower} (Current: {currentPower})");
+        Debug.Log($"Power capacity upgraded! {oldMaxPower} -> {maxPower} (Current: {currentPower})");
+    }
+    
+    /// <summary>
+    /// 전력 생산 (발전기에서 호출)
+    /// </summary>
+    public void GeneratePower(float amount)
+    {
+        if (amount <= 0) return;
+        
+        float oldCurrent = currentPower;
+        currentPower = Mathf.Min(currentPower + amount, maxPower);
+        
+        GameEvents.PowerChanged(currentPower, maxPower);
+        Debug.Log($"Generated {amount} power. Current: {currentPower}/{maxPower} (was {oldCurrent})");
     }
     
     /// <summary>
@@ -131,7 +147,8 @@ public class PowerManager : MonoBehaviour
     public void SetMaxPowerTest()
     {
         maxPower = 250f;
-        currentPower = maxPower;
+        // 현재 전력은 증가시키지 않음 (용량만 증가)
+        currentPower = Mathf.Min(currentPower, maxPower);
         GameEvents.PowerChanged(currentPower, maxPower);
     }
 }

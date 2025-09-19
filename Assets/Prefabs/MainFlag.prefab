@@ -181,10 +181,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   activationRecipe: {fileID: 11400000, guid: 8a8b94527319ea24aa0c45186dc6c55b, type: 2}
-  isActive: 0
+  isActive: 1
   isMainFlag: 1
   safeZone: {fileID: 2883369960414637093}
-  safeZoneRadius: 3
+  safeZoneSize: {x: 18, y: 10}
   objectRenderer: {fileID: 1706533116047329999}
   inactiveMaterial: {fileID: 2100000, guid: d5db92b0a217dc84c98b884ecfec1458, type: 2}
   activeMaterial: {fileID: 2100000, guid: 86122f270d4ff3f418bf20a8e6316780, type: 2}
@@ -204,9 +204,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   isActive: 1
-  safeZoneRadius: 3
+  safeZoneSize: {x: 18, y: 10}
   safeZoneColor: {r: 0, g: 1, b: 0, a: 1}
   showGizmo: 1
+  showRuntimeVisual: 1
+  safeZoneMaterial: {fileID: 2100000, guid: f24fea9a7762e4144a929cc08195cfba, type: 2}
+  enableMerging: 1
+  mergeCheckInterval: 1
   enterEffect: {fileID: 0}
   exitEffect: {fileID: 0}
 --- !u!1 &4004255064408210577

@@ -21,4 +21,4 @@ MonoBehaviour:
   producedMineral: {fileID: 0}
   productionAmount: 1
   productionTime: 10
-  powerIncrease: 0
+  powerIncrease: 10
