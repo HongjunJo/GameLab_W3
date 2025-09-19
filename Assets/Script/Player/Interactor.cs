@@ -15,8 +15,7 @@ public class Interactor : MonoBehaviour
     [SerializeField] private bool showInteractionRange = true;
     
     [Header("UI")]
-    [SerializeField] private GameObject interactionPrompt;
-    [SerializeField] private UnityEngine.UI.Text promptText;
+    // UI는 InteractionUI 클래스에서 관리
     
     private IInteractable currentInteractable;
     private bool isInteractionKeyPressed = false;
@@ -29,11 +28,7 @@ public class Interactor : MonoBehaviour
             interactionPoint = transform;
         }
         
-        // UI 초기화
-        if (interactionPrompt != null)
-        {
-            interactionPrompt.SetActive(false);
-        }
+        // UI는 InteractionUI에서 관리하므로 초기화 불필요
     }
     
     private void Update()
@@ -106,14 +101,16 @@ public class Interactor : MonoBehaviour
     /// </summary>
     private void UpdateUI()
     {
-        if (interactionPrompt == null) return;
-        
         bool hasInteractable = currentInteractable != null && currentInteractable.CanInteract();
-        interactionPrompt.SetActive(hasInteractable);
         
-        if (hasInteractable && promptText != null)
+        if (hasInteractable)
         {
-            promptText.text = $"Press {interactionKey} to {currentInteractable.GetInteractionText()}";
+            string message = $"Press {interactionKey} to {currentInteractable.GetInteractionText()}";
+            InteractionUI.ShowMessage(message);
+        }
+        else
+        {
+            InteractionUI.HideMessage();
         }
     }
     

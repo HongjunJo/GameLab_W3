@@ -19,11 +19,10 @@ public class Mine : MonoBehaviour, IInteractable
     [SerializeField] private int maxStock = 10;
     
     [Header("Visual")]
-    [SerializeField] private SpriteRenderer spriteRenderer;
-    [SerializeField] private Sprite inactiveSprite;
-    [SerializeField] private Sprite activeSprite;
-    [SerializeField] private GameObject activationEffect;
-    [SerializeField] private GameObject productionEffect;
+    [SerializeField] private Renderer objectRenderer;
+    [SerializeField] private Material inactiveMaterial;
+    [SerializeField] private Material activeMaterial;
+    [SerializeField] private Material productionMaterial;
     
     [Header("Debug")]
     [SerializeField] private float productionTimer = 0f;
@@ -32,9 +31,9 @@ public class Mine : MonoBehaviour, IInteractable
     
     private void Awake()
     {
-        if (spriteRenderer == null)
+        if (objectRenderer == null)
         {
-            spriteRenderer = GetComponent<SpriteRenderer>();
+            objectRenderer = GetComponent<Renderer>();
         }
         
         // 레시피에서 생산 정보 가져오기
@@ -131,12 +130,6 @@ public class Mine : MonoBehaviour, IInteractable
             // 생산 시작
             StartProduction();
             
-            // 이펙트 생성
-            if (activationEffect != null)
-            {
-                Instantiate(activationEffect, transform.position, Quaternion.identity);
-            }
-            
             // 비주얼 업데이트
             UpdateVisual();
             
@@ -198,12 +191,6 @@ public class Mine : MonoBehaviour, IInteractable
         currentStock += productionAmount;
         currentStock = Mathf.Min(currentStock, maxStock);
         
-        // 생산 이펙트
-        if (productionEffect != null)
-        {
-            Instantiate(productionEffect, transform.position, Quaternion.identity);
-        }
-        
         // 이벤트 발생
         GameEvents.MineralProduced(producedMineral, productionAmount);
         
@@ -231,17 +218,19 @@ public class Mine : MonoBehaviour, IInteractable
     /// </summary>
     private void UpdateVisual()
     {
-        if (spriteRenderer == null) return;
+        if (objectRenderer == null) return;
         
-        if (isActive && activeSprite != null)
+        if (isActive && activeMaterial != null)
         {
-            spriteRenderer.sprite = activeSprite;
-            spriteRenderer.color = Color.white;
+            objectRenderer.material = activeMaterial;
         }
-        else if (inactiveSprite != null)
+        else if (isBuilt && productionMaterial != null && currentStock > 0)
         {
-            spriteRenderer.sprite = inactiveSprite;
-            spriteRenderer.color = isBuilt ? Color.gray : Color.red;
+            objectRenderer.material = productionMaterial;
+        }
+        else if (inactiveMaterial != null)
+        {
+            objectRenderer.material = inactiveMaterial;
         }
     }
     

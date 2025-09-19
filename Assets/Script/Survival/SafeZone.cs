@@ -2,12 +2,13 @@ using UnityEngine;
 
 /// <summary>
 /// 안전지대의 범위를 정의하고 플레이어의 출입을 감지
+/// Box Collider 2D를 사용하여 명확한 사각형 범위 설정
 /// </summary>
 public class SafeZone : MonoBehaviour
 {
     [Header("Safe Zone Settings")]
     [SerializeField] private bool isActive = true;
-    [SerializeField] private float safeZoneRadius = 5f;
+    [SerializeField] private Vector2 safeZoneSize = new Vector2(10f, 10f); // 사각형 크기
     
     [Header("Visual Settings")]
     [SerializeField] private Color safeZoneColor = Color.green;
@@ -37,14 +38,14 @@ public class SafeZone : MonoBehaviour
         Collider2D col = GetComponent<Collider2D>();
         if (col == null)
         {
-            col = gameObject.AddComponent<CircleCollider2D>();
+            col = gameObject.AddComponent<BoxCollider2D>();
         }
         col.isTrigger = true;
         
-        // CircleCollider2D의 경우 반지름 설정
-        if (col is CircleCollider2D circleCol)
+        // BoxCollider2D의 경우 크기 설정
+        if (col is BoxCollider2D boxCol)
         {
-            circleCol.radius = safeZoneRadius;
+            boxCol.size = safeZoneSize;
         }
     }
     
@@ -78,6 +79,7 @@ public class SafeZone : MonoBehaviour
     
     private void OnTriggerExit2D(Collider2D other)
     {
+        // 비활성화된 깃발에서는 안전지대 해제 처리를 하지 않음
         if (!isActive) return;
         
         if (other.CompareTag("Player"))
@@ -134,16 +136,16 @@ public class SafeZone : MonoBehaviour
     }
     
     /// <summary>
-    /// 안전지대 반지름 설정
+    /// 안전지대 크기 설정
     /// </summary>
-    public void SetRadius(float newRadius)
+    public void SetSize(Vector2 newSize)
     {
-        safeZoneRadius = newRadius;
+        safeZoneSize = newSize;
         
-        CircleCollider2D circleCol = GetComponent<CircleCollider2D>();
-        if (circleCol != null)
+        BoxCollider2D boxCol = GetComponent<BoxCollider2D>();
+        if (boxCol != null)
         {
-            circleCol.radius = safeZoneRadius;
+            boxCol.size = safeZoneSize;
         }
     }
     
@@ -152,12 +154,18 @@ public class SafeZone : MonoBehaviour
         if (!showGizmo) return;
         
         Gizmos.color = safeZoneColor;
-        Gizmos.DrawWireSphere(transform.position, safeZoneRadius);
         
-        // 활성화 상태에 따라 색상 변경
+        // 사각형 와이어프레임 그리기
+        Vector3 center = transform.position;
+        Vector3 size = new Vector3(safeZoneSize.x, safeZoneSize.y, 0);
+        
+        // 와이어프레임 큐브
+        Gizmos.DrawWireCube(center, size);
+        
+        // 활성화 상태에 따라 색상 변경하여 채우기
         Color fillColor = safeZoneColor;
-        fillColor.a = 0.2f;
+        fillColor.a = isActive ? 0.2f : 0.1f;
         Gizmos.color = fillColor;
-        Gizmos.DrawSphere(transform.position, safeZoneRadius);
+        Gizmos.DrawCube(center, size);
     }
 }

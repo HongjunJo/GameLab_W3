@@ -12,13 +12,12 @@ public class Flag : MonoBehaviour, IInteractable
     
     [Header("Safe Zone")]
     [SerializeField] private SafeZone safeZone;
-    [SerializeField] private float safeZoneRadius = 5f;
+    [SerializeField] private Vector2 safeZoneSize = new Vector2(10f, 10f); // Box Collider용 크기
     
     [Header("Visual")]
-    [SerializeField] private SpriteRenderer spriteRenderer;
-    [SerializeField] private Sprite inactiveSprite;
-    [SerializeField] private Sprite activeSprite;
-    [SerializeField] private GameObject activationEffect;
+    [SerializeField] private Renderer objectRenderer;
+    [SerializeField] private Material inactiveMaterial;
+    [SerializeField] private Material activeMaterial;
     [SerializeField] private GameObject flagLight; // Light GameObject for visual effect
     
     [Header("Progression")]
@@ -31,9 +30,9 @@ public class Flag : MonoBehaviour, IInteractable
     
     private void Awake()
     {
-        if (spriteRenderer == null)
+        if (objectRenderer == null)
         {
-            spriteRenderer = GetComponent<SpriteRenderer>();
+            objectRenderer = GetComponent<Renderer>();
         }
         
         // SafeZone 컴포넌트 자동 설정
@@ -67,10 +66,10 @@ public class Flag : MonoBehaviour, IInteractable
             col.isTrigger = true;
         }
         
-        // SafeZone 반지름 설정
+        // SafeZone 크기 설정
         if (safeZone != null)
         {
-            safeZone.SetRadius(safeZoneRadius);
+            safeZone.SetSize(safeZoneSize);
         }
     }
     
@@ -137,11 +136,7 @@ public class Flag : MonoBehaviour, IInteractable
             safeZone.ActivateSafeZone();
         }
         
-        // 활성화 이펙트
-        if (activationEffect != null)
-        {
-            Instantiate(activationEffect, transform.position, Quaternion.identity);
-        }
+        // 이펙트는 사용하지 않음 (Material 기반 시각화만 사용)
         
         // 비주얼 업데이트
         UpdateVisual();
@@ -178,17 +173,15 @@ public class Flag : MonoBehaviour, IInteractable
     /// </summary>
     private void UpdateVisual()
     {
-        if (spriteRenderer != null)
+        if (objectRenderer != null)
         {
-            if (isActive && activeSprite != null)
+            if (isActive && activeMaterial != null)
             {
-                spriteRenderer.sprite = activeSprite;
-                spriteRenderer.color = Color.white;
+                objectRenderer.material = activeMaterial;
             }
-            else if (inactiveSprite != null)
+            else if (inactiveMaterial != null)
             {
-                spriteRenderer.sprite = inactiveSprite;
-                spriteRenderer.color = Color.gray;
+                objectRenderer.material = inactiveMaterial;
             }
         }
         
@@ -247,14 +240,14 @@ public class Flag : MonoBehaviour, IInteractable
     }
     
     /// <summary>
-    /// 안전지대 반지름 설정
+    /// 안전지대 크기 설정
     /// </summary>
-    public void SetSafeZoneRadius(float radius)
+    public void SetSafeZoneSize(Vector2 size)
     {
-        safeZoneRadius = radius;
+        safeZoneSize = size;
         if (safeZone != null)
         {
-            safeZone.SetRadius(radius);
+            safeZone.SetSize(size);
         }
     }
     
@@ -269,9 +262,14 @@ public class Flag : MonoBehaviour, IInteractable
     
     private void OnDrawGizmosSelected()
     {
-        // 안전지대 범위 표시
+        // 안전지대 범위 표시 (Box 형태)
         Gizmos.color = isActive ? Color.green : Color.red;
-        Gizmos.DrawWireSphere(transform.position, safeZoneRadius);
+        
+        Vector3 center = transform.position;
+        Vector3 size = new Vector3(safeZoneSize.x, safeZoneSize.y, 0);
+        
+        // 와이어프레임 박스
+        Gizmos.DrawWireCube(center, size);
         
         // 다음 깃발로의 연결선 표시
         if (nextFlag != null)

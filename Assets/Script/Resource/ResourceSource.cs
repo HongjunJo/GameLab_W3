@@ -13,9 +13,8 @@ public class ResourceSource : MonoBehaviour, IInteractable
     [SerializeField] private int maxAmount = 3;
     
     [Header("Visual Settings")]
-    [SerializeField] private SpriteRenderer spriteRenderer;
-    [SerializeField] private GameObject collectEffect;
-    [SerializeField] private AudioClip collectSound;
+    [SerializeField] private Renderer objectRenderer;
+    [SerializeField] private Material defaultMaterial;
     
     [Header("Interaction Settings")]
     [SerializeField] private float interactionRange = 2f;
@@ -31,18 +30,14 @@ public class ResourceSource : MonoBehaviour, IInteractable
             amount = Random.Range(minAmount, maxAmount + 1);
         }
         
-        // 스프라이트 렌더러 자동 할당
-        if (spriteRenderer == null)
+        // 오브젝트 렌더러 자동 할당
+        if (objectRenderer == null)
         {
-            spriteRenderer = GetComponent<SpriteRenderer>();
+            objectRenderer = GetComponent<Renderer>();
         }
         
-        // 광물 데이터에서 스프라이트 설정
-        if (mineralData != null && spriteRenderer != null && mineralData.icon != null)
-        {
-            spriteRenderer.sprite = mineralData.icon;
-            spriteRenderer.color = mineralData.mineralColor;
-        }
+        // 광물 데이터에서 머티리얼 색상 설정 (추후 확장용)
+        UpdateVisual();
     }
     
     private void Start()
@@ -90,18 +85,6 @@ public class ResourceSource : MonoBehaviour, IInteractable
             ResourceManager.Instance.AddResource(mineralData, amount);
         }
         
-        // 채집 이펙트 생성
-        if (collectEffect != null)
-        {
-            Instantiate(collectEffect, transform.position, Quaternion.identity);
-        }
-        
-        // 채집 사운드 재생
-        if (collectSound != null)
-        {
-            AudioSource.PlayClipAtPoint(collectSound, transform.position);
-        }
-        
         Debug.Log($"Collected {amount} {mineralData.mineralName}");
         
         // 오브젝트 제거
@@ -116,11 +99,19 @@ public class ResourceSource : MonoBehaviour, IInteractable
         mineralData = mineral;
         amount = resourceAmount;
         
-        // 스프라이트 업데이트
-        if (mineralData != null && spriteRenderer != null && mineralData.icon != null)
+        // 비주얼 업데이트
+        UpdateVisual();
+    }
+    
+    /// <summary>
+    /// 비주얼 업데이트
+    /// </summary>
+    private void UpdateVisual()
+    {
+        // 현재는 메테리얼 기반이지만, 나중에 광물별 머티리얼을 설정할 수 있음
+        if (objectRenderer != null && defaultMaterial != null)
         {
-            spriteRenderer.sprite = mineralData.icon;
-            spriteRenderer.color = mineralData.mineralColor;
+            objectRenderer.material = defaultMaterial;
         }
     }
     
@@ -144,12 +135,16 @@ public class ResourceSource : MonoBehaviour, IInteractable
         ResourceSource resource = resourceObj.AddComponent<ResourceSource>();
         resource.SetResourceData(mineralData, amount);
         
-        // 기본 스프라이트 렌더러 추가
-        SpriteRenderer sr = resourceObj.AddComponent<SpriteRenderer>();
-        resource.spriteRenderer = sr;
+        // 기본 렌더러 추가 (Cube 기본형)
+        GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        cube.transform.SetParent(resourceObj.transform);
+        cube.transform.localPosition = Vector3.zero;
+        
+        // 렌더러 연결
+        resource.objectRenderer = cube.GetComponent<Renderer>();
         
         // 기본 콜라이더 추가
-        CircleCollider2D col = resourceObj.AddComponent<CircleCollider2D>();
+        BoxCollider col = resourceObj.AddComponent<BoxCollider>();
         col.isTrigger = true;
         
         return resourceObj;

@@ -5,6 +5,9 @@ using UnityEngine;
 /// </summary>
 public class HPDrainSystem : MonoBehaviour
 {
+    [Header("Target Player")]
+    [SerializeField] private GameObject playerObject; // Player 오브젝트 참조
+    
     [Header("Drain Settings")]
     [SerializeField] private float drainAmount = 5f;
     [SerializeField] private float drainInterval = 1f;
@@ -23,17 +26,29 @@ public class HPDrainSystem : MonoBehaviour
     
     private void Awake()
     {
-        playerHealth = GetComponent<Health>();
-        playerStatus = GetComponent<PlayerStatus>();
+        // Player 오브젝트가 설정되지 않았다면 태그로 찾기
+        if (playerObject == null)
+        {
+            playerObject = GameObject.FindGameObjectWithTag("Player");
+        }
+        
+        if (playerObject == null)
+        {
+            Debug.LogError("HPDrainSystem: Player object not found! Please assign Player Object in inspector or ensure Player has 'Player' tag.");
+            return;
+        }
+        
+        playerHealth = playerObject.GetComponent<Health>();
+        playerStatus = playerObject.GetComponent<PlayerStatus>();
         
         if (playerHealth == null)
         {
-            Debug.LogError("HPDrainSystem requires a Health component!");
+            Debug.LogError("HPDrainSystem: Health component not found on Player object!");
         }
         
         if (playerStatus == null)
         {
-            Debug.LogError("HPDrainSystem requires a PlayerStatus component!");
+            Debug.LogError("HPDrainSystem: PlayerStatus component not found on Player object!");
         }
     }
     

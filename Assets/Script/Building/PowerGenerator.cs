@@ -12,9 +12,8 @@ public class PowerGenerator : MonoBehaviour, IInteractable
     [SerializeField] private bool isBuilt = true; // 기본 발전기는 이미 건설된 상태
     
     [Header("Visual")]
-    [SerializeField] private SpriteRenderer spriteRenderer;
-    [SerializeField] private Sprite[] levelSprites;
-    [SerializeField] private GameObject upgradeEffect;
+    [SerializeField] private Renderer objectRenderer;
+    [SerializeField] private Material[] levelMaterials;
     
     [Header("Debug Info")]
     [SerializeField] private float totalPowerGenerated = 0f;
@@ -25,9 +24,9 @@ public class PowerGenerator : MonoBehaviour, IInteractable
     
     private void Awake()
     {
-        if (spriteRenderer == null)
+        if (objectRenderer == null)
         {
-            spriteRenderer = GetComponent<SpriteRenderer>();
+            objectRenderer = GetComponent<Renderer>();
         }
         
         UpdateVisual();
@@ -108,12 +107,6 @@ public class PowerGenerator : MonoBehaviour, IInteractable
             PowerManager.Instance.UpgradeMaxPower(powerIncrease);
             totalPowerGenerated += powerIncrease;
             
-            // 업그레이드 이펙트
-            if (upgradeEffect != null)
-            {
-                Instantiate(upgradeEffect, transform.position, Quaternion.identity);
-            }
-            
             // 비주얼 업데이트
             UpdateVisual();
             
@@ -138,22 +131,12 @@ public class PowerGenerator : MonoBehaviour, IInteractable
     /// </summary>
     private void UpdateVisual()
     {
-        if (spriteRenderer == null || levelSprites == null) return;
+        if (objectRenderer == null || levelMaterials == null) return;
         
-        int spriteIndex = Mathf.Clamp(currentLevel, 0, levelSprites.Length - 1);
-        if (spriteIndex < levelSprites.Length && levelSprites[spriteIndex] != null)
+        int materialIndex = Mathf.Clamp(currentLevel, 0, levelMaterials.Length - 1);
+        if (materialIndex < levelMaterials.Length && levelMaterials[materialIndex] != null)
         {
-            spriteRenderer.sprite = levelSprites[spriteIndex];
-        }
-        
-        // 최대 레벨일 때 색상 변경
-        if (IsMaxLevel)
-        {
-            spriteRenderer.color = Color.cyan;
-        }
-        else
-        {
-            spriteRenderer.color = Color.white;
+            objectRenderer.material = levelMaterials[materialIndex];
         }
     }
     
