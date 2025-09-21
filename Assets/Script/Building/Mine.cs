@@ -29,6 +29,11 @@ public class Mine : MonoBehaviour, IInteractable
     
     private Coroutine productionCoroutine;
     
+    // Public 속성들
+    public bool IsBuilt => isBuilt;
+    public bool IsActive => isActive;
+    public bool IsActiveAndBuilt => isActive && isBuilt;
+    
     private void Awake()
     {
         if (objectRenderer == null)

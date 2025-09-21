@@ -13,6 +13,8 @@ public class Flag : MonoBehaviour, IInteractable
     [Header("Safe Zone")]
     [SerializeField] private SafeZone safeZone;
     [SerializeField] private Vector2 safeZoneSize = new Vector2(10f, 10f); // Box Collider용 크기
+    [SerializeField] private bool limitGizmoToTopHalf = true; // Gizmo를 설정된 최저 Y값 이상으로만 표시
+    [SerializeField] private float gizmoMinimumY = 0f; // Gizmo 표시할 최저 Y값
     
     [Header("Visual")]
     [SerializeField] private Renderer objectRenderer;
@@ -226,7 +228,14 @@ public class Flag : MonoBehaviour, IInteractable
         GameObject player = GameObject.FindGameObjectWithTag("Player");
         if (player != null)
         {
-            player.transform.position = GetSpawnPosition();
+            Vector3 spawnPos = GetSpawnPosition();
+            player.transform.position = spawnPos;
+            
+            // 그라운드 매니저를 통한 카메라 Y 위치 자동 조정
+            if (GroundManager.Instance != null)
+            {
+                GroundManager.Instance.AdjustCameraForPlayerPosition(spawnPos.y);
+            }
             
             // PlayerStatus에 리스폰 포인트 설정
             PlayerStatus playerStatus = player.GetComponent<PlayerStatus>();
@@ -260,16 +269,56 @@ public class Flag : MonoBehaviour, IInteractable
         ActivateFlag();
     }
     
+    /// <summary>
+    /// Gizmo Y축 제한 설정 (설정된 최저 Y값 이상으로만 표시)
+    /// </summary>
+    public void SetGizmoTopHalfLimit(bool limit)
+    {
+        limitGizmoToTopHalf = limit;
+    }
+    
+    /// <summary>
+    /// Gizmo 표시할 최저 Y값 설정
+    /// </summary>
+    public void SetGizmoMinimumY(float minY)
+    {
+        gizmoMinimumY = minY;
+    }
+    
     private void OnDrawGizmosSelected()
     {
         // 안전지대 범위 표시 (Box 형태)
         Gizmos.color = isActive ? Color.green : Color.red;
         
         Vector3 center = transform.position;
-        Vector3 size = new Vector3(safeZoneSize.x, safeZoneSize.y, 0);
         
-        // 와이어프레임 박스
-        Gizmos.DrawWireCube(center, size);
+        if (limitGizmoToTopHalf)
+        {
+            // 설정된 최저 Y값 이상으로만 표시
+            float halfWidth = safeZoneSize.x * 0.5f;
+            float halfHeight = safeZoneSize.y * 0.5f;
+            
+            float safeZoneBottom = center.y - halfHeight;
+            float safeZoneTop = center.y + halfHeight;
+            
+            // 실제 표시할 범위 계산
+            float displayBottom = Mathf.Max(safeZoneBottom, gizmoMinimumY);
+            float displayTop = safeZoneTop;
+            
+            Vector3 displayCenter = new Vector3(center.x, (displayBottom + displayTop) * 0.5f, center.z);
+            Vector3 displaySize = new Vector3(safeZoneSize.x, displayTop - displayBottom, 0);
+            
+            // 와이어프레임 박스 (제한된 범위만)
+            Gizmos.DrawWireCube(displayCenter, displaySize);
+        }
+        else
+        {
+            // 전체 사각형 표시
+            Vector3 size = new Vector3(safeZoneSize.x, safeZoneSize.y, 0);
+            
+            // 와이어프레임 박스
+            Gizmos.DrawWireCube(center, size);
+        }
         
         // 다음 깃발로의 연결선 표시
         if (nextFlag != null)

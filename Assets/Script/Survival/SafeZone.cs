@@ -15,6 +15,8 @@ public class SafeZone : MonoBehaviour
     [SerializeField] private Color safeZoneColor = Color.green;
     [SerializeField] private bool showGizmo = true;
     [SerializeField] private bool showRuntimeVisual = true; // 게임 실행 중 범위 표시
+    [SerializeField] private bool limitVisualToTopHalf = true; // Y축 이상으로만 비주얼 제한
+    [SerializeField] private float visualMinimumY = 0f; // 표시할 최저 Y값 (이 값 이상으로만 표시)
     [SerializeField] private Material safeZoneMaterial; // 범위 표시용 머티리얼
     [SerializeField] private bool enableMerging = true; // SafeZone 합치기 활성화
     [SerializeField] private float mergeCheckInterval = 1f; // 합치기 체크 간격
@@ -111,13 +113,45 @@ public class SafeZone : MonoBehaviour
         float halfWidth = safeZoneSize.x * 0.5f;
         float halfHeight = safeZoneSize.y * 0.5f;
         
-        Vector3[] positions = new Vector3[4]
+        Vector3[] positions;
+        
+        Debug.Log($"SafeZone {gameObject.name}: limitVisualToTopHalf={limitVisualToTopHalf}, visualMinimumY={visualMinimumY}, transform.position.y={transform.position.y}");
+        
+        if (limitVisualToTopHalf)
         {
-            new Vector3(-halfWidth, -halfHeight, 0), // 왼쪽 아래
-            new Vector3(halfWidth, -halfHeight, 0),  // 오른쪽 아래
-            new Vector3(halfWidth, halfHeight, 0),   // 오른쪽 위
-            new Vector3(-halfWidth, halfHeight, 0)   // 왼쪽 위
-        };
+            // 설정된 최저 Y값 이상으로만 표시
+            float safeZoneBottom = transform.position.y - halfHeight;
+            float safeZoneTop = transform.position.y + halfHeight;
+            
+            // 최저 Y값을 월드 좌표에서 로컬 좌표로 변환
+            float localMinY = visualMinimumY - transform.position.y;
+            
+            // 실제 표시할 범위 계산
+            float displayBottom = Mathf.Max(-halfHeight, localMinY);
+            float displayTop = halfHeight;
+            
+            Debug.Log($"LocalMinY: {localMinY}, DisplayBottom: {displayBottom}, DisplayTop: {displayTop}");
+            
+            positions = new Vector3[4]
+            {
+                new Vector3(-halfWidth, displayBottom, 0), // 왼쪽 아래 (제한된)
+                new Vector3(halfWidth, displayBottom, 0),  // 오른쪽 아래 (제한된)
+                new Vector3(halfWidth, displayTop, 0),     // 오른쪽 위
+                new Vector3(-halfWidth, displayTop, 0)     // 왼쪽 위
+            };
+        }
+        else
+        {
+            Debug.Log("Using full rectangle display");
+            // 전체 사각형 표시
+            positions = new Vector3[4]
+            {
+                new Vector3(-halfWidth, -halfHeight, 0), // 왼쪽 아래
+                new Vector3(halfWidth, -halfHeight, 0),  // 오른쪽 아래
+                new Vector3(halfWidth, halfHeight, 0),   // 오른쪽 위
+                new Vector3(-halfWidth, halfHeight, 0)   // 왼쪽 위
+            };
+        }
         
         lineRenderer.SetPositions(positions);
         
@@ -299,13 +333,6 @@ public class SafeZone : MonoBehaviour
         {
             playerInSafeZone = true;
             
-            // 플레이어 상태 업데이트
-            PlayerStatus playerStatus = other.GetComponent<PlayerStatus>();
-            if (playerStatus != null)
-            {
-                playerStatus.SetSafeZoneStatus(true);
-            }
-            
             // 이벤트 발생
             GameEvents.EnteredSafeZone();
             
@@ -327,13 +354,6 @@ public class SafeZone : MonoBehaviour
         if (other.CompareTag("Player"))
         {
             playerInSafeZone = false;
-            
-            // 플레이어 상태 업데이트
-            PlayerStatus playerStatus = other.GetComponent<PlayerStatus>();
-            if (playerStatus != null)
-            {
-                playerStatus.SetSafeZoneStatus(false);
-            }
             
             // 이벤트 발생
             GameEvents.ExitedSafeZone();
@@ -416,23 +436,81 @@ public class SafeZone : MonoBehaviour
         UpdateRuntimeVisual();
     }
     
+    /// <summary>
+    /// Y축 제한 설정 (설정된 최저 Y값 이상으로만 표시)
+    /// </summary>
+    public void SetVisualTopHalfLimit(bool limit)
+    {
+        limitVisualToTopHalf = limit;
+        UpdateRuntimeVisual();
+    }
+    
+    /// <summary>
+    /// 표시할 최저 Y값 설정
+    /// </summary>
+    public void SetVisualMinimumY(float minY)
+    {
+        visualMinimumY = minY;
+        UpdateRuntimeVisual();
+        Debug.Log($"SafeZone {gameObject.name}: Visual Minimum Y set to {minY}");
+    }
+    
+    /// <summary>
+    /// 강제로 비주얼 업데이트 (디버깅용)
+    /// </summary>
+    [ContextMenu("Force Update Visual")]
+    public void ForceUpdateVisual()
+    {
+        Debug.Log($"Force updating visual for {gameObject.name}");
+        UpdateRuntimeVisual();
+    }
+    
     private void OnDrawGizmosSelected()
     {
         if (!showGizmo) return;
         
         Gizmos.color = safeZoneColor;
         
-        // 사각형 와이어프레임 그리기
         Vector3 center = transform.position;
-        Vector3 size = new Vector3(safeZoneSize.x, safeZoneSize.y, 0);
         
-        // 와이어프레임 큐브
-        Gizmos.DrawWireCube(center, size);
-        
-        // 활성화 상태에 따라 색상 변경하여 채우기
-        Color fillColor = safeZoneColor;
-        fillColor.a = isActive ? 0.2f : 0.1f;
-        Gizmos.color = fillColor;
-        Gizmos.DrawCube(center, size);
+        if (limitVisualToTopHalf)
+        {
+            // 설정된 최저 Y값 이상으로만 표시
+            float halfWidth = safeZoneSize.x * 0.5f;
+            float halfHeight = safeZoneSize.y * 0.5f;
+            
+            float safeZoneBottom = center.y - halfHeight;
+            float safeZoneTop = center.y + halfHeight;
+            
+            // 실제 표시할 범위 계산
+            float displayBottom = Mathf.Max(safeZoneBottom, visualMinimumY);
+            float displayTop = safeZoneTop;
+            
+            Vector3 displayCenter = new Vector3(center.x, (displayBottom + displayTop) * 0.5f, center.z);
+            Vector3 displaySize = new Vector3(safeZoneSize.x, displayTop - displayBottom, 0);
+            
+            // 와이어프레임 큐브 (제한된 범위만)
+            Gizmos.DrawWireCube(displayCenter, displaySize);
+            
+            // 활성화 상태에 따라 색상 변경하여 채우기
+            Color fillColor = safeZoneColor;
+            fillColor.a = isActive ? 0.2f : 0.1f;
+            Gizmos.color = fillColor;
+            Gizmos.DrawCube(displayCenter, displaySize);
+        }
+        else
+        {
+            // 전체 사각형 표시
+            Vector3 size = new Vector3(safeZoneSize.x, safeZoneSize.y, 0);
+            
+            // 와이어프레임 큐브
+            Gizmos.DrawWireCube(center, size);
+            
+            // 활성화 상태에 따라 색상 변경하여 채우기
+            Color fillColor = safeZoneColor;
+            fillColor.a = isActive ? 0.2f : 0.1f;
+            Gizmos.color = fillColor;
+            Gizmos.DrawCube(center, size);
+        }
     }
 }

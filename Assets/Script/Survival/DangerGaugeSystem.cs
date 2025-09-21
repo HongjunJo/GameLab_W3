@@ -9,10 +9,8 @@ public class DangerGaugeSystem : MonoBehaviour
     [Header("Danger Settings")]
     [SerializeField] private float maxDanger = 100f;
     [SerializeField] private float currentDanger = 0f;
-    [SerializeField] private float dangerIncreaseRate = 5f; // 초당 위험도 증가량
-    [SerializeField] private float dangerDecreaseRate = 2f; // 안전지대에서 초당 위험도 감소량
-    [SerializeField] private bool isIncreasing = false;
-    [SerializeField] private bool isDecreasing = false;
+    [SerializeField] private float dangerIncreaseRate = 3f; // 초당 위험도 증가량
+    [SerializeField] private float dangerDecreaseRate = 10f; // 안전지대에서 초당 위험도 감소량
     
     [Header("Death Settings")]
     [SerializeField] private GameObject deathEffect;
@@ -21,13 +19,11 @@ public class DangerGaugeSystem : MonoBehaviour
     
     [Header("Respawn Settings")]
     [SerializeField] private Transform respawnPoint;
-    [SerializeField] private float respawnDelay = 2f;
+    [SerializeField] private float respawnDelay = 0.5f;
     [SerializeField] private bool useFlagSystem = true;
     
     [Header("Death Effects")]
-    [SerializeField] private Material deathMaterial; // 죽을 때 적용할 메테리얼
     [SerializeField] private float deathFreezeTime = 1f; // 죽고 얼어있는 시간
-    [SerializeField] private float materialChangeSpeed = 0.5f; // 메테리얼 변경 속도
     
     [Header("Components")]
     private CharacterMove characterMove;
@@ -35,17 +31,21 @@ public class DangerGaugeSystem : MonoBehaviour
     private Rigidbody2D playerRb;
     private PlayerStatus playerStatus;
     private SpriteRenderer spriteRenderer;
-    private Material originalMaterial; // 원본 메테리얼 저장
     
     [Header("State")]
     [SerializeField] private bool isDead = false;
     [SerializeField] private bool isRespawning = false;
+    [SerializeField] private bool isInSafeZone = false; // isIncreasing/isDecreasing 대체
     
     // UI에서 표시할 때 100으로 클램프된 값
-    public float DisplayDanger => Mathf.Min(currentDanger, maxDanger);
+    public float DisplayDanger => currentDanger; // 실제 currentDanger 값 그대로 표시
     public float DangerPercentage => currentDanger / maxDanger;
     public bool IsAlive => !isDead;
     public bool IsDead => isDead;
+    public bool IsInSafeZone => isInSafeZone;
+    public float CurrentIncreaseRate => dangerIncreaseRate;
+    public float CurrentDecreaseRate => dangerDecreaseRate;
+
     
     private void Awake()
     {
@@ -54,12 +54,6 @@ public class DangerGaugeSystem : MonoBehaviour
         playerRb = GetComponent<Rigidbody2D>();
         playerStatus = GetComponent<PlayerStatus>();
         spriteRenderer = GetComponent<SpriteRenderer>();
-        
-        // 원본 메테리얼 저장
-        if (spriteRenderer != null)
-        {
-            originalMaterial = spriteRenderer.material;
-        }
         
         // 기본 리스폰 포인트 설정 (설정되지 않았다면 현재 위치)
         if (respawnPoint == null)
@@ -78,85 +72,74 @@ public class DangerGaugeSystem : MonoBehaviour
     
     private void OnEnable()
     {
-        GameEvents.OnExitedSafeZone += StartDangerIncrease;
-        GameEvents.OnEnteredSafeZone += StopDangerIncrease;
+        GameEvents.OnExitedSafeZone += HandleExitSafeZone;
+        GameEvents.OnEnteredSafeZone += HandleEnterSafeZone;
     }
     
     private void OnDisable()
     {
-        GameEvents.OnExitedSafeZone -= StartDangerIncrease;
-        GameEvents.OnEnteredSafeZone -= StopDangerIncrease;
+        GameEvents.OnExitedSafeZone -= HandleExitSafeZone;
+        GameEvents.OnEnteredSafeZone -= HandleEnterSafeZone;
     }
     
     private void Update()
     {
         if (isDead || isRespawning) return;
-        
-        if (isIncreasing)
+
+        bool dangerChanged = false;
+
+        if (!isInSafeZone) // 위험 지대
         {
-            float previousDanger = currentDanger;
-            IncreaseDanger(dangerIncreaseRate * Time.deltaTime);
-            
-            // 10씩 증가할 때마다 로그 출력 (너무 많은 로그 방지)
-            if (Mathf.FloorToInt(currentDanger / 10f) > Mathf.FloorToInt(previousDanger / 10f))
-            {
-                Debug.Log($"Danger gauge: {currentDanger:F1}/{maxDanger}");
-            }
+            // 값이 실제로 변경되었을 때만 dangerChanged를 true로 설정
+            dangerChanged = IncreaseDanger(dangerIncreaseRate * Time.deltaTime);
         }
-        else if (isDecreasing && currentDanger > 0)
+        else if (isInSafeZone && currentDanger > 0) // 안전 지대이고, 위험도가 0보다 클 때
         {
-            float previousDanger = currentDanger;
-            DecreaseDanger(dangerDecreaseRate * Time.deltaTime);
-            
-            // 10씩 감소할 때마다 로그 출력
-            if (Mathf.FloorToInt(currentDanger / 10f) < Mathf.FloorToInt(previousDanger / 10f))
-            {
-                Debug.Log($"Danger gauge decreasing: {currentDanger:F1}/{maxDanger}");
-            }
+            // 값이 실제로 변경되었을 때만 dangerChanged를 true로 설정
+            dangerChanged = DecreaseDanger(dangerDecreaseRate * Time.deltaTime);
+        }
+
+        if (dangerChanged) {
+            GameEvents.DangerChanged(DisplayDanger, maxDanger);
         }
     }
     
     /// <summary>
     /// 위험도 증가
     /// </summary>
-    public void IncreaseDanger(float amount)
+    public bool IncreaseDanger(float amount)
     {
-        if (isDead || amount <= 0) return;
+        if (isDead || amount <= 0 || isRespawning) return false;
         
         currentDanger += amount;
         
-        // UI 업데이트 (100으로 클램프된 값 표시)
-        GameEvents.DangerChanged(DisplayDanger, maxDanger);
-        
         // 100 이상이 되면 사망
-        if (currentDanger >= maxDanger)
+        if (currentDanger >= maxDanger && !isDead)
         {
             Die();
         }
+        return true;
     }
     
     /// <summary>
     /// 위험도 감소
     /// </summary>
-    public void DecreaseDanger(float amount)
+    public bool DecreaseDanger(float amount)
     {
-        if (isDead || amount <= 0) return;
+        if (isDead || amount <= 0 || isRespawning) return false;
         
         currentDanger -= amount;
         
         // 0 미만으로 내려가지 않도록 클램프
         currentDanger = Mathf.Max(0f, currentDanger);
         
-        // UI 업데이트
-        GameEvents.DangerChanged(DisplayDanger, maxDanger);
-        
         // 0에 도달하면 완전 안전
         if (currentDanger <= 0f)
         {
             currentDanger = 0f;
-            isDecreasing = false; // 감소 중단
             Debug.Log("Danger gauge fully recovered to 0");
         }
+        return true;
     }
     
     /// <summary>
@@ -165,68 +148,34 @@ public class DangerGaugeSystem : MonoBehaviour
     public void ResetDanger()
     {
         currentDanger = 0f;
-        isIncreasing = false;
-        isDecreasing = false; // 감소 상태도 초기화
+        SetSafeZoneStatus(true); // 안전한 상태로 초기화
         GameEvents.DangerChanged(DisplayDanger, maxDanger);
         Debug.Log("Danger gauge reset to 0");
     }
     
-    /// <summary>
-    /// 리스폰 후 시스템 상태 완전 초기화
-    /// </summary>
-    private void ResetSystemState()
+    private void HandleEnterSafeZone()
     {
-        // 위험도 초기화
-        currentDanger = 0f;
-        isIncreasing = false;
-        isDecreasing = false; // 감소 상태도 초기화
-        isDead = false;
-        isRespawning = false;
-        
-        // 메테리얼 복구 (안전장치)
-        RestoreOriginalMaterial();
-        
-        // 이벤트 재구독 (혹시 끊어졌을 수도 있으므로)
-        GameEvents.OnExitedSafeZone -= StartDangerIncrease;
-        GameEvents.OnEnteredSafeZone -= StopDangerIncrease;
-        GameEvents.OnExitedSafeZone += StartDangerIncrease;
-        GameEvents.OnEnteredSafeZone += StopDangerIncrease;
-        
-        // UI 업데이트
-        GameEvents.DangerChanged(DisplayDanger, maxDanger);
-        
-        Debug.Log("System state completely reset after respawn");
+        SetSafeZoneStatus(true);
     }
-    
-    /// <summary>
-    /// 위험도 증가 시작 (안전지대를 벗어났을 때)
-    /// </summary>
-    private void StartDangerIncrease()
+
+    private void HandleExitSafeZone()
     {
-        if (!isDead)
-        {
-            isIncreasing = true;
-            isDecreasing = false; // 감소 중단
-            Debug.Log("Danger gauge started increasing");
-        }
+        SetSafeZoneStatus(false);
     }
-    
+
     /// <summary>
-    /// 위험도 증가 중단 (안전지대에 들어왔을 때)
+    /// 안전지대 상태를 설정하고 관련 로직을 처리하는 중앙 메서드
     /// </summary>
-    private void StopDangerIncrease()
+    private void SetSafeZoneStatus(bool inSafeZone)
     {
-        isIncreasing = false;
-        
-        // 안전지대에 들어왔고 위험도가 0보다 크면 감소 시작
-        if (!isDead && currentDanger > 0)
-        {
-            isDecreasing = true;
-            Debug.Log("Danger gauge started decreasing in safe zone");
-        }
-        else
-        {
-            Debug.Log("Danger gauge stopped increasing");
+        if (isDead || isRespawning) return; // 사망 또는 리스폰 중에는 상태 변경 방지
+
+        isInSafeZone = inSafeZone;
+
+        if (isInSafeZone) {
+            Debug.Log($"안전지대 진입. 위험도 감소 시작 (현재: {currentDanger:F1})");
+        } else {
+            Debug.Log("위험지대 진입. 위험도 증가 시작.");
         }
     }
     
@@ -238,9 +187,11 @@ public class DangerGaugeSystem : MonoBehaviour
         if (isDead) return;
         
         isDead = true;
-        isIncreasing = false;
         
-        Debug.Log("Player died from danger overload!");
+        // 위험도를 최대값으로 고정하여 더 이상 변화하지 않도록
+        currentDanger = maxDanger;
+        
+        Debug.Log($"Player died from danger overload! Danger fixed at {maxDanger}");
         
         // 플레이어 사망 이벤트 발생
         GameEvents.PlayerDied();
@@ -297,65 +248,47 @@ public class DangerGaugeSystem : MonoBehaviour
     /// </summary>
     private void UnfreezePlayer()
     {
+        // 컴포넌트 재참조 (런타임 추가된 경우 대비)
+        if (playerRb == null)
+            playerRb = GetComponent<Rigidbody2D>();
+            
         if (playerRb != null)
         {
             // 다이나믹으로 복원
             playerRb.bodyType = RigidbodyType2D.Dynamic;
+            // 물리 상태 완전 초기화
+            playerRb.linearVelocity = Vector2.zero;
+            playerRb.angularVelocity = 0f;
+            // 물리 제약 해제
+            playerRb.constraints = RigidbodyConstraints2D.FreezeRotation;
+            Debug.Log("Rigidbody2D 완전 초기화 및 프리징 해제");
+        }
+        else
+        {
+            Debug.LogError("Rigidbody2D 컴포넌트를 찾을 수 없음!");
         }
         
         Debug.Log("Player unfrozen");
     }
     
     /// <summary>
-    /// 죽음 시퀀스 (메테리얼 변경 → 프리징 → 이펙트 → 리스폰)
+    /// 죽음 시퀀스 (이펙트와 프리징 동시 실행 → 0.5초 대기 → 리스폰)
     /// </summary>
     private IEnumerator DeathSequence()
     {
         Debug.Log("Starting death sequence...");
         
-        // 1. 메테리얼 변경 (즉시 또는 페이드)
-        if (deathMaterial != null && spriteRenderer != null)
-        {
-            yield return StartCoroutine(ChangeMaterialCoroutine(deathMaterial));
-        }
-        
-        // 2. 죽음 이펙트 재생
+        // 1. 죽음 이펙트 재생과 프리징을 동시에 시작
         PlayDeathEffect();
         
-        // 3. 프리징 시간 대기
-        yield return new WaitForSeconds(deathFreezeTime);
+        // 2. 프리징 시간 대기 (이펙트와 동시 실행)
+        yield return new WaitForSeconds(deathFreezeTime); // 1초
+        
+        // 3. 추가 0.5초 대기 후 리스폰 시작
+        yield return new WaitForSeconds(0.5f);
         
         // 4. 리스폰 시작
         StartCoroutine(RespawnCoroutine());
-    }
-    
-    /// <summary>
-    /// 메테리얼 변경 코루틴
-    /// </summary>
-    private IEnumerator ChangeMaterialCoroutine(Material targetMaterial)
-    {
-        if (spriteRenderer == null) yield break;
-        
-        Debug.Log($"Changing material to: {targetMaterial.name}");
-        
-        // 즉시 변경 (페이드 효과를 원한다면 여기서 구현 가능)
-        spriteRenderer.material = targetMaterial;
-        
-        yield return new WaitForSeconds(materialChangeSpeed);
-        
-        Debug.Log("Material change completed");
-    }
-    
-    /// <summary>
-    /// 메테리얼 원상복구
-    /// </summary>
-    private void RestoreOriginalMaterial()
-    {
-        if (spriteRenderer != null && originalMaterial != null)
-        {
-            spriteRenderer.material = originalMaterial;
-            Debug.Log("Original material restored");
-        }
     }
     
     /// <summary>
@@ -363,14 +296,37 @@ public class DangerGaugeSystem : MonoBehaviour
     /// </summary>
     private void EnablePlayerControl()
     {
+        // 컴포넌트 재참조 (런타임 추가된 경우 대비)
+        if (characterMove == null)
+            characterMove = GetComponent<CharacterMove>();
+        if (characterJump == null)
+            characterJump = GetComponent<CharacterJump>();
+        
         if (characterMove != null)
         {
             characterMove.enabled = true;
+            Debug.Log("CharacterMove 활성화됨");
+        }
+        else
+        {
+            Debug.LogError("CharacterMove 컴포넌트를 찾을 수 없음!");
         }
         
         if (characterJump != null)
         {
             characterJump.enabled = true;
+            Debug.Log("CharacterJump 활성화됨");
+        }
+        else
+        {
+            Debug.LogError("CharacterJump 컴포넌트를 찾을 수 없음!");
+        }
+        
+        // InputManager 재활성화 확인
+        if (InputManager.Instance != null)
+        {
+            InputManager.Instance.TestAble();
+            Debug.Log("InputManager.TestAble() 추가 호출");
         }
     }
     
@@ -422,16 +378,17 @@ public class DangerGaugeSystem : MonoBehaviour
     }
     
     /// <summary>
-    /// 리스폰 코루틴
+    /// 리스폰 코루틴 (수정된 버전)
     /// </summary>
     private IEnumerator RespawnCoroutine()
     {
         isRespawning = true;
-        
-        // 리스폰 대기
+        Debug.Log("리스폰 시퀀스 시작.");
+
+        // 1. 리스폰 딜레이
         yield return new WaitForSeconds(respawnDelay);
-        
-        // 리스폰 처리
+
+        // 2. 리스폰 위치로 플레이어 이동
         if (useFlagSystem)
         {
             RespawnToNearestFlag();
@@ -439,39 +396,45 @@ public class DangerGaugeSystem : MonoBehaviour
         else if (respawnPoint != null)
         {
             transform.position = respawnPoint.position;
-            Debug.Log($"Respawned to manual respawn point: {respawnPoint.position}");
+            Debug.Log($"수동 리스폰 포인트로 이동: {respawnPoint.position}");
         }
         else
         {
             transform.position = Vector3.zero;
-            Debug.Log("Respawned to origin (no respawn point set)");
+            Debug.Log("리스폰 포인트 없음, 원점으로 이동");
         }
-        
-        // 메테리얼 원상복구
-        RestoreOriginalMaterial();
-        
-        // 프리징 해제
+
+        // 3. 순간이동 후 물리 엔진이 새 위치를 인식하도록 한 프레임 대기
+        yield return new WaitForFixedUpdate();
+
+        // 4. 플레이어 상태 초기화 (가장 중요)
+        isDead = false;
+        currentDanger = 0f; // 위험도를 0으로 초기화
+
         UnfreezePlayer();
-        
-        // 시스템 상태 완전 초기화
-        ResetSystemState();
-        
-        // 플레이어 제어 다시 활성화
         EnablePlayerControl();
         
-        // PlayerStatus에 리스폰 완료 알림
         if (playerStatus != null)
         {
             playerStatus.OnRespawnCompleted();
         }
-        
-        // 리스폰 후 안전지대 상태 강제 확인
-        yield return new WaitForSeconds(0.1f); // 위치 이동 후 잠시 대기
+
+        // 5. UI 업데이트: 초기화된 값(0)을 UI에 즉시 반영
+        GameEvents.DangerChanged(currentDanger, maxDanger);
+        Debug.Log("리스폰 완료. 위험도 0으로 초기화 및 UI 업데이트됨.");
+
+        // 6. 한 프레임 더 대기: 물리 이벤트(OnTrigger) 등이 처리될 시간을 줌
+        yield return null;
+
+        // 7. 리스폰 상태 해제: 이제부터 정상적인 게임 로직(위험도 증가 등)이 작동 가능
+        isRespawning = false;
+
+        // 8. 새로운 위치에서 안전지대 여부 확인 (리스폰이 완전히 끝난 후)
+        // isRespawning이 false가 되었으므로, 이 호출로 인해 위험도가 즉시 증가할 수 있음
+        // 이 시점에는 이미 Flag의 OnTriggerEnter가 호출되어 isInSafeZone이 true일 확률이 높음
         CheckSafeZoneStatus();
-        
-        Debug.Log("Player respawn sequence completed!");
     }
-    
+
     /// <summary>
     /// 가장 가까운 Flag로 리스폰
     /// </summary>
@@ -549,7 +512,7 @@ public class DangerGaugeSystem : MonoBehaviour
     /// </summary>
     public string GetDangerInfo()
     {
-        return $"Danger: {DisplayDanger:F1}/{maxDanger}, Increasing: {isIncreasing}, Dead: {isDead}";
+        return $"Danger: {DisplayDanger:F1}/{maxDanger}, InSafeZone: {isInSafeZone}, Dead: {isDead}";
     }
     
     /// <summary>
@@ -557,34 +520,32 @@ public class DangerGaugeSystem : MonoBehaviour
     /// </summary>
     private void CheckSafeZoneStatus()
     {
-        // 현재 위치에서 안전지대 확인
+        // 리스폰 중에는 이 로직을 실행하지 않음
+        if (isRespawning) return;
+
+        // 현재 위치에서 안전지대 콜라이더 확인
         Collider2D[] colliders = Physics2D.OverlapCircleAll(transform.position, 1f);
         bool inSafeZone = false;
-        
+
         foreach (var collider in colliders)
         {
-            SafeZone safeZone = collider.GetComponent<SafeZone>();
-            if (safeZone != null && safeZone.IsActive)
+            if (collider.CompareTag("SafeZone")) // Flag 또는 SafeZone 오브젝트에 "SafeZone" 태그 사용 권장
             {
                 inSafeZone = true;
-                Debug.Log($"Player is in safe zone: {safeZone.name}");
+                Debug.Log($"안전지대({collider.name}) 안에 있음.");
                 break;
             }
         }
-        
+
         if (inSafeZone)
         {
-            StopDangerIncrease();
+            SetSafeZoneStatus(true);
         }
         else
         {
-            StartDangerIncrease();
+            Debug.Log($"위험지대 안에 있음. 위험도 증가 로직 시작.");
+            SetSafeZoneStatus(false);
         }
-        
-        // PlayerStatus 업데이트
-        if (playerStatus != null)
-        {
-            playerStatus.SetSafeZoneStatus(inSafeZone);
-        }
+
     }
 }

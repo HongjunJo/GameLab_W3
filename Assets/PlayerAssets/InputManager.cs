@@ -107,7 +107,7 @@ public class InputManager : MonoBehaviour
         playerInput.Player.Disable();
     }
 
-    private void TestDisable()
+    public void TestDisable()
     {
         playerInput.Player.PrimaryClick.started -= StartDrag;
         playerInput.Player.PrimaryClick.canceled -= EndDrag;
@@ -137,7 +137,7 @@ public class InputManager : MonoBehaviour
         clickableObject = null;
 
     }
-    private void TestAble()
+    public void TestAble()
     {
         // 1. Action 다시 활성화
         playerInput.Player.PrimaryClick.Enable();

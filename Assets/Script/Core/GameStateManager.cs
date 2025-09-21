@@ -98,7 +98,8 @@ public class GameStateManager : MonoBehaviour
                 break;
                 
             case GameState.Dead:
-                Time.timeScale = 0f;
+                // Time.timeScale = 0f; // 리스폰 코루틴이 멈추지 않도록 주석 처리
+                // 게임은 계속 진행되지만, 플레이어는 제어 불능 상태가 됨
                 break;
                 
             case GameState.Paused:

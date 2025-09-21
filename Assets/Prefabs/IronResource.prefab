@@ -98,7 +98,7 @@ MonoBehaviour:
   minAmount: 1
   maxAmount: 5
   objectRenderer: {fileID: 0}
-  defaultMaterial: {fileID: 0}
+  defaultMaterial: {fileID: 2100000, guid: aabc8b9b69ea33b469531db5542120ba, type: 2}
   interactionRange: 0
   interactionText: Collect
 --- !u!1 &6499594193240074884

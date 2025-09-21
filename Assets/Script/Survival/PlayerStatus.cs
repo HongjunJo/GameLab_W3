@@ -6,14 +6,11 @@ using UnityEngine;
 public class PlayerStatus : MonoBehaviour
 {
     [Header("Status")]
-    [SerializeField] private bool isInSafeZone = false;
     [SerializeField] private bool isDead = false;
     
     [Header("Spawn Settings")]
     [SerializeField] private Transform lastSafeZonePosition;
     [SerializeField] private SafeZone lastSafeZone;
-    
-    public bool IsInSafeZone => isInSafeZone;
     public bool IsDead => isDead;
     public Transform LastSafeZonePosition => lastSafeZonePosition;
     public SafeZone LastSafeZone => lastSafeZone;
@@ -70,23 +67,6 @@ public class PlayerStatus : MonoBehaviour
     private void OnDisable()
     {
         GameEvents.OnPlayerDied -= HandlePlayerDeath;
-    }
-    
-    /// <summary>
-    /// 안전지대 상태 설정
-    /// </summary>
-    public void SetSafeZoneStatus(bool inSafeZone)
-    {
-        bool wasInSafeZone = isInSafeZone;
-        isInSafeZone = inSafeZone;
-        
-        // 안전지대에 들어왔을 때 해당 위치를 기록
-        if (inSafeZone && !wasInSafeZone)
-        {
-            RecordCurrentSafeZone();
-        }
-        
-        Debug.Log($"Player safe zone status: {isInSafeZone}");
     }
     
     /// <summary>
@@ -153,12 +133,6 @@ public class PlayerStatus : MonoBehaviour
             // 상태 초기화
             isDead = false;
             
-            // 안전지대에 있는 상태로 설정
-            if (lastSafeZone != null && lastSafeZone.IsActive)
-            {
-                SetSafeZoneStatus(true);
-            }
-            
             Debug.Log($"Player respawned at: {transform.position}");
         }
         else
@@ -173,6 +147,12 @@ public class PlayerStatus : MonoBehaviour
     public void OnRespawnCompleted()
     {
         isDead = false;
+        // 리스폰 시 새로운 안전지대 위치 기록
+        // DangerGaugeSystem이 리스폰 위치를 결정하므로, 그 후에 호출됨
+        if (dangerGaugeSystem != null && dangerGaugeSystem.IsAlive)
+        {
+            RecordCurrentSafeZone();
+        }
         Debug.Log("PlayerStatus: Respawn completed");
     }
     
@@ -191,6 +171,13 @@ public class PlayerStatus : MonoBehaviour
     /// </summary>
     public string GetStatusInfo()
     {
-        return $"InSafeZone: {isInSafeZone}, IsDead: {isDead}, LastSafeZone: {(lastSafeZone != null ? lastSafeZone.name : "None")}";
+        bool currentSafeZoneStatus = false;
+        if (dangerGaugeSystem != null)
+        {
+            // 실시간 상태는 DangerGaugeSystem에서 가져옴
+            // dangerGaugeSystem.isInSafeZone은 private이므로 직접 접근 불가.
+            // 필요하다면 public 프로퍼티로 노출해야 함. 여기서는 디버그 정보이므로 일단 false로 둠.
+        }
+        return $"IsDead: {isDead}, LastSafeZone: {(lastSafeZone != null ? lastSafeZone.name : "None")}";
     }
 }

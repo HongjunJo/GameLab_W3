@@ -65,16 +65,28 @@ public class CharacterMove : MonoBehaviour
     }
     void Start()
     {
-    InputManager.Instance.MovementAD += OnMovement;
+        // InputManager가 준비되었을 때만 이벤트 등록
+        if (InputManager.Instance != null)
+        {
+            InputManager.Instance.MovementAD += OnMovement;
+        }
     }
     private void OnEnable()
     {
-        
+        // 컴포넌트가 활성화될 때 이벤트 다시 등록
+        if (InputManager.Instance != null)
+        {
+            InputManager.Instance.MovementAD += OnMovement;
+        }
     }
 
     private void OnDisable()
     {
-        InputManager.Instance.MovementAD -= OnMovement;
+        // 컴포넌트가 비활성화될 때 이벤트 해제
+        if (InputManager.Instance != null)
+        {
+            InputManager.Instance.MovementAD -= OnMovement;
+        }
     }
 
     public void OnMovement(float movement)
