@@ -19,4 +19,9 @@ public interface IInteractable
     /// </summary>
     /// <returns>상호작용 설명 텍스트</returns>
     string GetInteractionText();
+
+    /// <summary>
+    /// 상호작용 중단 (홀드 상호작용용)
+    /// </summary>
+    void StopInteract();
 }

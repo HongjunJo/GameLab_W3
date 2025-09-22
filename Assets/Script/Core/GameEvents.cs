@@ -16,8 +16,6 @@ public static class GameEvents
     // 전력 관련 이벤트
     public static event Action<float, float> OnPowerChanged; // currentPower, maxPower
     
-    // 체력 관련 이벤트
-    public static event Action<float, float> OnHealthChanged; // currentHP, maxHP
     public static event Action OnPlayerDied;
     
     // 위험도 관련 이벤트
@@ -51,12 +49,6 @@ public static class GameEvents
     public static void PowerChanged(float currentPower, float maxPower)
     {
         OnPowerChanged?.Invoke(currentPower, maxPower);
-    }
-    
-    // 체력 이벤트 발생 메서드들
-    public static void HealthChanged(float currentHP, float maxHP)
-    {
-        OnHealthChanged?.Invoke(currentHP, maxHP);
     }
     
     public static void PlayerDied()

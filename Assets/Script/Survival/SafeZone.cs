@@ -115,7 +115,7 @@ public class SafeZone : MonoBehaviour
         
         Vector3[] positions;
         
-        Debug.Log($"SafeZone {gameObject.name}: limitVisualToTopHalf={limitVisualToTopHalf}, visualMinimumY={visualMinimumY}, transform.position.y={transform.position.y}");
+        // Debug.Log($"SafeZone {gameObject.name}: limitVisualToTopHalf={limitVisualToTopHalf}, visualMinimumY={visualMinimumY}, transform.position.y={transform.position.y}");
         
         if (limitVisualToTopHalf)
         {
@@ -130,7 +130,7 @@ public class SafeZone : MonoBehaviour
             float displayBottom = Mathf.Max(-halfHeight, localMinY);
             float displayTop = halfHeight;
             
-            Debug.Log($"LocalMinY: {localMinY}, DisplayBottom: {displayBottom}, DisplayTop: {displayTop}");
+            // Debug.Log($"LocalMinY: {localMinY}, DisplayBottom: {displayBottom}, DisplayTop: {displayTop}");
             
             positions = new Vector3[4]
             {
@@ -333,9 +333,6 @@ public class SafeZone : MonoBehaviour
         {
             playerInSafeZone = true;
             
-            // 이벤트 발생
-            GameEvents.EnteredSafeZone();
-            
             // 입장 이펙트
             if (enterEffect != null)
             {
@@ -354,9 +351,6 @@ public class SafeZone : MonoBehaviour
         if (other.CompareTag("Player"))
         {
             playerInSafeZone = false;
-            
-            // 이벤트 발생
-            GameEvents.ExitedSafeZone();
             
             // 퇴장 이펙트
             if (exitEffect != null)

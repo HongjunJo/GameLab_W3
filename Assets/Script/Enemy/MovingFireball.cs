@@ -116,7 +116,7 @@ public class MovingFireball : MonoBehaviour
         // AddForce 대신 linearVelocity에 직접 할당하여 질량과 관계없이 정확한 속도를 부여합니다.
         rb.linearVelocity = new Vector2(velocityX, velocityY);
 
-        Debug.Log($"Fireball launched with velocity: {rb.linearVelocity}");
+        // Debug.Log($"Fireball launched with velocity: {rb.linearVelocity}");
     }
 
     /// <summary>

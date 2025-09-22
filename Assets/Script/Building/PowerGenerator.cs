@@ -61,6 +61,11 @@ public class PowerGenerator : MonoBehaviour, IInteractable
         }
     }
     
+    public void StopInteract()
+    {
+        // 발전기는 홀드 상호작용이 없으므로 비워둡니다.
+    }
+
     public string GetInteractionText()
     {
         if (!isBuilt)
@@ -70,19 +75,20 @@ public class PowerGenerator : MonoBehaviour, IInteractable
         
         if (IsMaxLevel)
         {
-            return $"Max Level Generator (Lv.{currentLevel})";
+            return $"Generator (Max Level)";
         }
         
         BuildingRecipe nextRecipe = GetNextUpgradeRecipe();
         if (nextRecipe != null)
         {
-            if (nextRecipe.CanAfford())
+            string costText = nextRecipe.GetCostAsString();
+            if (CanInteract())
             {
-                return $"Upgrade Generator (Lv.{currentLevel} → Lv.{currentLevel + 1})";
+                return $"Upgrade Generator (Lv.{currentLevel + 1})\n{costText}";
             }
             else
             {
-                return $"Need more resources (Lv.{currentLevel + 1})";
+                return $"Upgrade Generator (Lv.{currentLevel + 1})\n<color=red>Need more resources</color>\n{costText}";
             }
         }
         
@@ -102,14 +108,12 @@ public class PowerGenerator : MonoBehaviour, IInteractable
         {
             currentLevel++;
             
-            // 최대 전력량 증가
-            float powerIncrease = recipe.powerIncrease;
-            PowerManager.Instance.UpgradeMaxPower(powerIncrease);
+            PowerManager.Instance.UpgradeMaxPower(recipe.powerIncrease);
             
             // 즉시 전력 생산 (업그레이드 보상)
-            PowerManager.Instance.GeneratePower(powerIncrease);
-            
-            totalPowerGenerated += powerIncrease;
+            PowerManager.Instance.GeneratePower(recipe.powerIncrease);
+            // 총 발전량 기록 (통계용)
+            totalPowerGenerated += recipe.powerIncrease;
             
             // 비주얼 업데이트
             UpdateVisual();
@@ -117,7 +121,7 @@ public class PowerGenerator : MonoBehaviour, IInteractable
             // 이벤트 발생
             GameEvents.BuildingActivated($"PowerGenerator_Lv{currentLevel}");
             
-            Debug.Log($"Generator upgraded to level {currentLevel}! Power capacity and generation increased by {powerIncrease}");
+            Debug.Log($"Generator upgraded to level {currentLevel}! Max power increased by {recipe.powerIncrease}");
         }
     }
     

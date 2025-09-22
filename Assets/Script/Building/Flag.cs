@@ -8,7 +8,7 @@ public class Flag : MonoBehaviour, IInteractable
     [Header("Flag Settings")]
     [SerializeField] private BuildingRecipe activationRecipe;
     [SerializeField] private bool isActive = false;
-    [SerializeField] private bool isMainFlag = false; // 시작 깃발인지
+    [SerializeField] public bool isMainFlag = false; // 시작 깃발인지
     
     [Header("Safe Zone")]
     [SerializeField] private SafeZone safeZone;
@@ -77,7 +77,7 @@ public class Flag : MonoBehaviour, IInteractable
     
     public bool CanInteract()
     {
-        if (isActive) return false; // 이미 활성화된 깃발은 상호작용 불가
+        if (isActive) return false; // 이미 활성화된 깃발은 상호작용 불가 (이 부분이 핵심)
         if (isMainFlag) return false; // 메인 깃발은 상호작용 불가
         
         // 활성화 레시피가 있고 비용을 지불할 수 있는지 확인
@@ -92,31 +92,29 @@ public class Flag : MonoBehaviour, IInteractable
         }
     }
     
+    public void StopInteract()
+    {
+        // 깃발은 홀드 상호작용이 없으므로 비워둡니다.
+    }
+
     public string GetInteractionText()
     {
+        // 이미 활성화되었거나 메인 깃발이면 아무 텍스트도 표시하지 않음
         if (isActive)
         {
-            return "Active Flag";
+            return ""; 
         }
-        
         if (isMainFlag)
         {
-            return "Main Base";
+            return "";
         }
         
         if (activationRecipe != null)
         {
-            if (activationRecipe.CanAfford())
-            {
-                return "Activate Flag";
-            }
-            else
-            {
-                return "Need more resources to activate";
-            }
+            // CanInteract()가 true일 때만 "Activate Flag" 표시
+            return CanInteract() ? "Activate Flag" : "Need more resources to activate";
         }
-        
-        return "Inactive Flag";
+        return "Need more resources to activate";
     }
     
     /// <summary>
@@ -218,34 +216,6 @@ public class Flag : MonoBehaviour, IInteractable
             return playerSpawnPoint.position;
         }
         return transform.position;
-    }
-    
-    /// <summary>
-    /// 플레이어를 이 깃발로 이동
-    /// </summary>
-    public void TeleportPlayerHere()
-    {
-        GameObject player = GameObject.FindGameObjectWithTag("Player");
-        if (player != null)
-        {
-            Vector3 spawnPos = GetSpawnPosition();
-            player.transform.position = spawnPos;
-            
-            // 그라운드 매니저를 통한 카메라 Y 위치 자동 조정
-            if (GroundManager.Instance != null)
-            {
-                GroundManager.Instance.AdjustCameraForPlayerPosition(spawnPos.y);
-            }
-            
-            // PlayerStatus에 리스폰 포인트 설정
-            PlayerStatus playerStatus = player.GetComponent<PlayerStatus>();
-            if (playerStatus != null)
-            {
-                playerStatus.SetRespawnPoint(transform, safeZone);
-            }
-            
-            Debug.Log($"Player teleported to {gameObject.name}");
-        }
     }
     
     /// <summary>

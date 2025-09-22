@@ -15,10 +15,12 @@ MonoBehaviour:
   recipeName: 
   description: 
   resourceCosts:
+  - mineral: {fileID: 11400000, guid: afa0c6676f8e0bd40a8ed55614a5641b, type: 2}
+    amount: 5
   - mineral: {fileID: 11400000, guid: d4faacb5762670b4ab25be6bfa77dc8b, type: 2}
-    amount: 20
+    amount: 5
   electricityCost: 0
   producedMineral: {fileID: 0}
   productionAmount: 1
   productionTime: 10
-  powerIncrease: 10
+  powerIncrease: 1

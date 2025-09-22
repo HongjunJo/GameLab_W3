@@ -44,6 +44,13 @@ public class InteractionUI : MonoBehaviour
     
     private void ShowInteraction(string message)
     {
+        // 메시지가 비어있으면 패널을 숨깁니다.
+        if (string.IsNullOrEmpty(message))
+        {
+            HideInteraction();
+            return;
+        }
+
         if (interactionText != null)
         {
             interactionText.text = message;

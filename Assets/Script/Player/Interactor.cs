@@ -7,8 +7,8 @@ public class Interactor : MonoBehaviour
 {
     [Header("Interaction Settings")]
     [SerializeField] private float interactionRange = 2f;
-    [SerializeField] private LayerMask interactionLayerMask = -1;
-    [SerializeField] private KeyCode interactionKey = KeyCode.E;
+    [SerializeField] private LayerMask interactionLayerMask = -1; // 모든 레이어와 상호작용
+    [SerializeField] private KeyCode interactionKey = KeyCode.F; // 상호작용 키를 F로 변경
     
     [Header("Detection Settings")]
     [SerializeField] private Transform interactionPoint;
@@ -43,11 +43,22 @@ public class Interactor : MonoBehaviour
     /// </summary>
     private void HandleInput()
     {
-        isInteractionKeyPressed = Input.GetKeyDown(interactionKey);
-        
-        if (isInteractionKeyPressed && currentInteractable != null && currentInteractable.CanInteract())
+        // 키를 누르는 순간
+        if (Input.GetKeyDown(interactionKey))
         {
-            currentInteractable.Interact();
+            if (currentInteractable != null && currentInteractable.CanInteract())
+            {
+                currentInteractable.Interact();
+            }
+        }
+        
+        // 키를 떼는 순간
+        if (Input.GetKeyUp(interactionKey))
+        {
+            if (currentInteractable != null)
+            {
+                currentInteractable.StopInteract();
+            }
         }
     }
     
@@ -61,7 +72,8 @@ public class Interactor : MonoBehaviour
         currentInteractable = null;
         
         // 상호작용 범위 내의 모든 콜라이더 검사
-        Collider2D[] colliders = Physics2D.OverlapCircleAll(
+        // LayerMask를 사용하도록 수정하여 성능 최적화
+        Collider2D[] colliders = Physics2D.OverlapCircleAll( 
             interactionPoint.position, 
             interactionRange, 
             interactionLayerMask
@@ -73,7 +85,8 @@ public class Interactor : MonoBehaviour
         foreach (Collider2D col in colliders)
         {
             IInteractable interactable = col.GetComponent<IInteractable>();
-            if (interactable != null && interactable.CanInteract())
+            // CanInteract() 조건을 제거하여, 상호작용 가능 여부와 상관없이 가장 가까운 오브젝트를 찾도록 수정
+            if (interactable != null)
             {
                 float distance = Vector2.Distance(interactionPoint.position, col.transform.position);
                 if (distance < closestDistance)
@@ -101,12 +114,12 @@ public class Interactor : MonoBehaviour
     /// </summary>
     private void UpdateUI()
     {
-        bool hasInteractable = currentInteractable != null && currentInteractable.CanInteract();
-        
-        if (hasInteractable)
+        // currentInteractable이 null이 아니기만 하면 UI를 표시하도록 수정
+        if (currentInteractable != null)
         {
-            string message = $"Press {interactionKey} to {currentInteractable.GetInteractionText()}";
-            InteractionUI.ShowMessage(message);
+            // GetInteractionText()가 비어있지 않을 때만 메시지를 표시
+            string text = currentInteractable.GetInteractionText();
+            InteractionUI.ShowMessage(text);
         }
         else
         {

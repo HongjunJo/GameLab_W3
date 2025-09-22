@@ -22,4 +22,13 @@ public class MovementLimiter : MonoBehaviour
     {
         
     }
+
+    /// <summary>
+    /// 캐릭터의 이동 가능 상태를 설정합니다.
+    /// </summary>
+    /// <param name="canMove">이동 가능 여부</param>
+    public void SetCanMove(bool canMove)
+    {
+        CharacterCanMove = canMove;
+    }
 }

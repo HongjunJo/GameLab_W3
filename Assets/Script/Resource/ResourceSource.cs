@@ -1,4 +1,6 @@
 using UnityEngine;
+using System.Collections;
+using Random = UnityEngine.Random;
 
 /// <summary>
 /// 필드에 떨어져 있는 채집 가능한 자원
@@ -13,14 +15,19 @@ public class ResourceSource : MonoBehaviour, IInteractable
     [SerializeField] private int maxAmount = 3;
     
     [Header("Visual Settings")]
-    [SerializeField] private Renderer objectRenderer;
-    [SerializeField] private Material defaultMaterial;
+    [Tooltip("채집 시 비활성화될 시각적 표현을 담당하는 자식 오브젝트")]
+    [SerializeField] private GameObject visualObject;
     
     [Header("Interaction Settings")]
     [SerializeField] private float interactionRange = 2f;
     [SerializeField] private string interactionText = "Collect";
     
-    private bool hasBeenCollected = false;
+    // 홀드 상호작용 관련 변수
+    private bool isInteracting = false;
+    private float currentHoldTime = 0f;
+    private bool isDepleted = false;
+    private WorldspaceProgressUI progressUI;
+    private int currentHp;
     
     private void Awake()
     {
@@ -29,15 +36,22 @@ public class ResourceSource : MonoBehaviour, IInteractable
         {
             amount = Random.Range(minAmount, maxAmount + 1);
         }
+
+        if (mineralData != null)
+        {
+            currentHp = mineralData.maxHp;
+        }
         
         // 오브젝트 렌더러 자동 할당
-        if (objectRenderer == null)
+        if (visualObject == null && transform.childCount > 0)
         {
-            objectRenderer = GetComponent<Renderer>();
+            visualObject = transform.GetChild(0).gameObject;
         }
         
         // 광물 데이터에서 머티리얼 색상 설정 (추후 확장용)
-        UpdateVisual();
+
+        // 자식 오브젝트에서 진행률 UI를 찾습니다.
+        progressUI = GetComponentInChildren<WorldspaceProgressUI>();
     }
     
     private void Start()
@@ -53,21 +67,67 @@ public class ResourceSource : MonoBehaviour, IInteractable
     
     public bool CanInteract()
     {
-        return !hasBeenCollected && mineralData != null;
+        return !isDepleted && mineralData != null;
     }
     
-    public void Interact()
+    // 상호작용 시작 (키를 누르기 시작)
+    public void Interact() 
     {
         if (!CanInteract()) return;
-        
-        CollectResource();
+        isInteracting = true;
+        currentHoldTime = 0f; // 홀드 시간 초기화
+        if (progressUI != null)
+        {
+            progressUI.Show();
+            progressUI.UpdateProgress(0);
+        }
+        Debug.Log($"{mineralData.mineralName} 채집 시작...");
     }
     
+    // 상호작용 중단 (키를 떼거나 범위 이탈)
+    public void StopInteract()
+    {
+        if (isInteracting)
+        {
+            isInteracting = false;
+            currentHoldTime = 0f;
+            if (progressUI != null)
+            {
+                progressUI.Hide();
+            }
+            Debug.Log($"{mineralData.mineralName} 채집 중단.");
+        }
+    }
+    
+    private void Update()
+    {
+        // 상호작용 중일 때 홀드 시간 업데이트
+        if (isInteracting)
+        {
+            currentHoldTime += Time.deltaTime;
+
+            // 진행률 UI 업데이트
+            if (progressUI != null)
+            {
+                float progress = Mathf.Clamp01(currentHoldTime / mineralData.miningDuration);
+                progressUI.UpdateProgress(progress);
+            }
+
+            if (currentHoldTime >= mineralData.miningDuration)
+            {
+                CollectResource();
+                isInteracting = false; // 채집 완료 후 상호작용 상태 해제
+            }
+        }
+    }
+
     public string GetInteractionText()
     {
         if (!CanInteract()) return "";
         
-        return $"{interactionText} {mineralData.mineralName} x{amount}";
+        // 홀드 진행 시간을 표시
+        float remainingTime = Mathf.Max(0, mineralData.miningDuration - currentHoldTime);
+        return $"Hold to {interactionText} {mineralData.mineralName} ({remainingTime:F1}s)";
     }
     
     /// <summary>
@@ -75,9 +135,8 @@ public class ResourceSource : MonoBehaviour, IInteractable
     /// </summary>
     private void CollectResource()
     {
-        if (hasBeenCollected) return;
-        
-        hasBeenCollected = true;
+        if (isDepleted) return;
+        isDepleted = true;
         
         // ResourceManager에 자원 추가
         if (ResourceManager.Instance != null)
@@ -85,12 +144,51 @@ public class ResourceSource : MonoBehaviour, IInteractable
             ResourceManager.Instance.AddResource(mineralData, amount);
         }
         
-        Debug.Log($"Collected {amount} {mineralData.mineralName}");
+        if (progressUI != null)
+        {
+            progressUI.Hide();
+        }
+
+        Debug.Log($"채집 완료! {mineralData.mineralName} {amount}개를 획득했습니다.");
         
-        // 오브젝트 제거
-        Destroy(gameObject);
+        // 오브젝트를 파괴하는 대신 재생성 코루틴을 시작합니다.
+        StartCoroutine(RespawnCoroutine());
     }
-    
+
+    /// <summary>
+    /// 자원 재생성 코루틴
+    /// </summary>
+    private IEnumerator RespawnCoroutine()
+    {
+        if (mineralData.respawnTime > 0f)
+        {
+            // 시각적 오브젝트와 콜라이더를 비활성화합니다.
+            if (visualObject != null) visualObject.SetActive(false);
+            GetComponent<Collider2D>().enabled = false; // 상호작용을 막기 위해 콜라이더도 끔
+
+            Debug.Log($"{mineralData.mineralName}이(가) {mineralData.respawnTime}초 후 재생성됩니다.");
+
+            // 설정된 시간만큼 대기
+            yield return new WaitForSeconds(mineralData.respawnTime);
+
+            // 자원 상태 및 시각/물리적 요소 초기화
+            isDepleted = false;
+            currentHp = mineralData.maxHp;
+            currentHoldTime = 0f; // 홀드 시간을 초기화하여 UI 표시 오류 수정
+            if (visualObject != null) visualObject.SetActive(true);
+            GetComponent<Collider2D>().enabled = true;
+
+            Debug.Log($"{mineralData.mineralName} 재생성 완료!");
+        }
+        
+        else
+        {
+            // 재생성 시간이 0 이하이면 오브젝트를 완전히 비활성화
+            Debug.Log($"{mineralData.mineralName}이(가) 재생성되지 않고 비활성화됩니다.");
+            gameObject.SetActive(false);
+        }
+    }
+
     /// <summary>
     /// 자원 데이터 설정 (런타임에서 동적 생성시 사용)
     /// </summary>
@@ -98,21 +196,7 @@ public class ResourceSource : MonoBehaviour, IInteractable
     {
         mineralData = mineral;
         amount = resourceAmount;
-        
-        // 비주얼 업데이트
-        UpdateVisual();
-    }
-    
-    /// <summary>
-    /// 비주얼 업데이트
-    /// </summary>
-    private void UpdateVisual()
-    {
-        // 현재는 메테리얼 기반이지만, 나중에 광물별 머티리얼을 설정할 수 있음
-        if (objectRenderer != null && defaultMaterial != null)
-        {
-            objectRenderer.material = defaultMaterial;
-        }
+        currentHp = mineralData.maxHp;
     }
     
     /// <summary>
@@ -139,9 +223,6 @@ public class ResourceSource : MonoBehaviour, IInteractable
         GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
         cube.transform.SetParent(resourceObj.transform);
         cube.transform.localPosition = Vector3.zero;
-        
-        // 렌더러 연결
-        resource.objectRenderer = cube.GetComponent<Renderer>();
         
         // 기본 콜라이더 추가
         BoxCollider col = resourceObj.AddComponent<BoxCollider>();

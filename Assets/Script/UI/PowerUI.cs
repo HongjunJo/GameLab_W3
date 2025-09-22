@@ -19,7 +19,7 @@ public class PowerUI : MonoBehaviour
     {
         if (powerText != null)
         {
-            powerText.text = "Power: 0/0";
+            powerText.text = "Power: 0";
         }
     }
     
@@ -27,7 +27,7 @@ public class PowerUI : MonoBehaviour
     {
         if (powerText == null) return;
         
-        powerText.text = $"Power: {current:F0}/{maximum:F0}";
+        powerText.text = $"Power: {current:F0}";
         
         // 전력 상태에 따른 색상 변경
         float powerRatio = maximum > 0 ? current / maximum : 0;

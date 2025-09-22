@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using System.Collections;
 
 /// <summary>
 /// 위험도 게이지 UI 표시 컴포넌트
@@ -14,9 +15,9 @@ public class DangerUI : MonoBehaviour
     
     [Header("Visual Settings")]
     [SerializeField] private Color lowDangerColor = Color.green;
-    [SerializeField] private Color mediumDangerColor = Color.yellow;
-    [SerializeField] private Color highDangerColor = Color.red;
-    [SerializeField] private Color criticalDangerColor = new Color(0.8f, 0f, 0f, 1f); // 진한 빨강
+    [SerializeField] private Color mediumDangerColor = new Color(1f, 0.5f, 0f); // 주황색
+    [SerializeField] private Color highDangerColor = Color.red; // 빨간색
+    private Coroutine flashCoroutine;
     
     private void OnEnable()
     {
@@ -33,15 +34,17 @@ public class DangerUI : MonoBehaviour
         // 초기 표시
         if (dangerText != null)
         {
-            dangerText.text = "Danger: 0/100";
+            dangerText.text = "O2: 100/100";
         }
         
         if (dangerSlider != null)
         {
-            dangerSlider.value = 0f;
+            dangerSlider.interactable = false; // 슬라이더 클릭 방지
+            dangerSlider.value = 1f; // 시작 시 슬라이더를 가득 채움
         }
         
-        UpdateFillColor(0f);
+        // 산소 시스템에 맞게 색상 로직을 반대로 적용
+        UpdateFillColor(1f);
     }
     
     /// <summary>
@@ -53,7 +56,7 @@ public class DangerUI : MonoBehaviour
         if (dangerText != null)
         {
             float displayValue = Mathf.Min(current, maximum);
-            dangerText.text = $"Danger: {displayValue:F0}/{maximum:F0}";
+            dangerText.text = $"O2: {displayValue:F0}/{maximum:F0}";
         }
         
         // 슬라이더 업데이트
@@ -62,62 +65,77 @@ public class DangerUI : MonoBehaviour
             dangerSlider.value = maximum > 0 ? Mathf.Min(current, maximum) / maximum : 0;
         }
         
-        // 위험도에 따른 색상 변경
-        float dangerRatio = maximum > 0 ? current / maximum : 0;
-        UpdateFillColor(dangerRatio);
+        // 산소량에 따른 색상 변경
+        float oxygenRatio = maximum > 0 ? current / maximum : 0;
+        UpdateFillColor(oxygenRatio);
+        
+        // 산소량에 따른 깜빡임 효과 처리
+        HandleFlashingEffect(oxygenRatio);
     }
     
     /// <summary>
-    /// 위험도에 따른 게이지 색상 업데이트
+    /// 산소량에 따른 게이지 색상 업데이트 (로직 반전)
     /// </summary>
-    private void UpdateFillColor(float dangerRatio)
+    private void UpdateFillColor(float oxygenRatio)
     {
         if (dangerFill == null) return;
         
         Color targetColor;
         
-        if (dangerRatio < 0.25f) // 0-25%: 안전 (초록)
+        if (oxygenRatio > 0.5f) // 100-50%: 안전 (초록)
         {
-            targetColor = lowDangerColor;
+            // 100%일 때 초록색, 50%일 때 노란색으로 점진적 변경
+            targetColor = Color.Lerp(mediumDangerColor, lowDangerColor, (oxygenRatio - 0.5f) * 2f);
         }
-        else if (dangerRatio < 0.5f) // 25-50%: 주의 (노랑)
+        else if (oxygenRatio > 0.25f) // 50-25%: 주의 (주황)
         {
-            targetColor = Color.Lerp(lowDangerColor, mediumDangerColor, (dangerRatio - 0.25f) * 4f);
+            targetColor = Color.Lerp(highDangerColor, mediumDangerColor, (oxygenRatio - 0.25f) * 4f);
         }
-        else if (dangerRatio < 0.75f) // 50-75%: 위험 (주황)
+        else // 25-0%: 위험 (빨강)
         {
-            targetColor = Color.Lerp(mediumDangerColor, highDangerColor, (dangerRatio - 0.5f) * 4f);
-        }
-        else // 75-100%: 극도 위험 (빨강)
-        {
-            targetColor = Color.Lerp(highDangerColor, criticalDangerColor, (dangerRatio - 0.75f) * 4f);
+            targetColor = highDangerColor;
         }
         
         dangerFill.color = targetColor;
     }
     
     /// <summary>
-    /// 위험도 게이지 깜빡임 효과 (높은 위험도일 때)
+    /// 산소량에 따른 깜빡임 효과 처리
     /// </summary>
-    private void Update()
+    private void HandleFlashingEffect(float oxygenRatio)
     {
-        if (dangerFill != null && dangerSlider != null)
+        if (oxygenRatio < 0.25f) // 산소가 25% 미만일 때 깜빡임 시작
         {
-            // 90% 이상일 때 깜빡임 효과
-            if (dangerSlider.value >= 0.9f)
+            if (flashCoroutine == null)
+                flashCoroutine = StartCoroutine(FlashEffect());
+        }
+        else // 산소가 25% 이상이면 깜빡임 중지
+        {
+            if (flashCoroutine != null)
             {
-                float alpha = 0.7f + 0.3f * Mathf.Sin(Time.time * 8f); // 빠른 깜빡임
-                Color currentColor = dangerFill.color;
-                currentColor.a = alpha;
-                dangerFill.color = currentColor;
+                StopCoroutine(flashCoroutine);
+                flashCoroutine = null;
+                Color c = dangerFill.color;
+                c.a = 1f; // 알파값 복원
+                dangerFill.color = c;
             }
-            else
-            {
-                // 정상 알파 값 복원
-                Color currentColor = dangerFill.color;
-                currentColor.a = 1f;
-                dangerFill.color = currentColor;
-            }
+        }
+    }
+
+    /// <summary>
+    /// 게이지 깜빡임 효과 코루틴
+    /// </summary>
+    private IEnumerator FlashEffect()
+    {
+        while (true)
+        {
+            if (dangerFill == null) yield break; // Null 체크 추가
+
+            float alpha = 0.7f + 0.3f * Mathf.Sin(Time.time * 8f); // 빠른 깜빡임
+            Color currentColor = dangerFill.color;
+            currentColor.a = alpha;
+            dangerFill.color = currentColor;
+            yield return null;
         }
     }
 }

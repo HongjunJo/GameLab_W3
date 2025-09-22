@@ -6,6 +6,10 @@ using System.Collections;
 /// </summary>
 public class FallDamageDetector : MonoBehaviour
 {
+    [Header("Player Settings")]
+    [Tooltip("사망 처리할 플레이어 오브젝트를 직접 할당합니다. 비워두면 충돌한 'Player' 태그 오브젝트를 사용합니다.")]
+    [SerializeField] private GameObject playerObject;
+
     [Header("Death Effect Settings")]
     [SerializeField] private GameObject deathEffect; // 사망 이펙트 프리팹
     [SerializeField] private ParticleSystem deathParticleEffect; // 파티클 이펙트
@@ -22,164 +26,53 @@ public class FallDamageDetector : MonoBehaviour
     
     private void OnTriggerEnter2D(Collider2D other)
     {
-        // 플레이어만 감지
+        // 충돌한 오브젝트가 "Player" 태그를 가지고 있지 않거나, 이미 트리거되었다면 무시합니다.
+        // GetComponentInParent로 찾을 것이므로, 자식 오브젝트와 충돌해도 괜찮습니다.
         if (!other.CompareTag("Player") || hasTriggered)
             return;
             
         hasTriggered = true;
-        
+
+        // 충돌한 'other'의 부모를 포함하여 PlayerStatus 컴포넌트를 찾습니다.
+        PlayerStatus playerStatus = other.GetComponentInParent<PlayerStatus>();
+
         if (showDebugLogs)
         {
             Debug.Log($"=== 낙사 감지! 플레이어가 {gameObject.name}에 닿았습니다! ===");
         }
-        
-        // 즉시 플레이어 제어 차단 및 사망 처리
-        StartCoroutine(HandleFallDeath(other.gameObject));
-    }
-    
-    /// <summary>
-    /// 낙사 처리 시퀀스
-    /// </summary>
-    private IEnumerator HandleFallDeath(GameObject player)
-    {
-        // 1. 즉시 입력 및 이동 차단
-        DisablePlayerInput(player);
-        DisablePlayerMovement(player);
-        
-        if (showDebugLogs)
-        {
-            Debug.Log("플레이어 입력 및 이동 차단 완료");
-        }
-        
-        // 2. 이펙트 재생
-        PlayDeathEffects(player.transform.position);
-        
-        // 3. 사운드 재생
+
+        // 이펙트와 사운드를 먼저 재생합니다.
+        PlayDeathEffects(other.transform.position);
         PlayDeathSound();
-        
-        // 4. 짧은 대기 (이펙트가 보이도록)
-        yield return new WaitForSeconds(0.1f);
-        
-        // 5. 사망 처리 메서드 호출
-        TriggerPlayerDeath(player);
-        
-        if (showDebugLogs)
-        {
-            Debug.Log("낙사 처리 완료 - 사망 시스템으로 이관");
-        }
-        
-        // 6. 잠시 후 트리거 리셋 (다른 플레이어나 재시도를 위해)
-        yield return new WaitForSeconds(2f);
-        hasTriggered = false;
-    }
-    
-    /// <summary>
-    /// 플레이어 입력 시스템 비활성화
-    /// </summary>
-    private void DisablePlayerInput(GameObject player)
-    {
-        // InputManager의 TestDisable 사용 (텔레포터와 동일한 방식)
-        if (InputManager.Instance != null)
-        {
-            InputManager.Instance.TestDisable();
-            if (showDebugLogs)
-            {
-                Debug.Log("InputManager.TestDisable() 호출 완료");
-            }
-        }
-        else
-        {
-            // 백업 방법: 기본 Input 리셋
-            Input.ResetInputAxes();
-            if (showDebugLogs)
-            {
-                Debug.LogWarning("InputManager가 없어 Input.ResetInputAxes() 사용");
-            }
-        }
-    }
-    
-    /// <summary>
-    /// 플레이어 이동 및 물리 정지
-    /// </summary>
-    private void DisablePlayerMovement(GameObject player)
-    {
-        // CharacterMove 비활성화
-        CharacterMove characterMove = player.GetComponent<CharacterMove>();
-        if (characterMove != null)
-        {
-            characterMove.directionX = 0f;
-            characterMove.pressingKey = false;
-            characterMove.velocity = Vector2.zero;
-            characterMove.enabled = false;
-            if (showDebugLogs)
-            {
-                Debug.Log("CharacterMove 비활성화 완료");
-            }
-        }
-        
-        // CharacterJump 비활성화
-        CharacterJump characterJump = player.GetComponent<CharacterJump>();
-        if (characterJump != null)
-        {
-            characterJump.enabled = false;
-            if (showDebugLogs)
-            {
-                Debug.Log("CharacterJump 비활성화 완료");
-            }
-        }
-        
-        // Rigidbody2D 완전 정지
-        Rigidbody2D playerRb = player.GetComponent<Rigidbody2D>();
-        if (playerRb != null)
-        {
-            playerRb.linearVelocity = Vector2.zero;
-            playerRb.angularVelocity = 0f;
-            playerRb.bodyType = RigidbodyType2D.Kinematic; // 물리 영향 차단
-            if (showDebugLogs)
-            {
-                Debug.Log("Rigidbody2D 프리징 완료");
-            }
-        }
-        
-        // InputSystemPlayerController 비활성화 (있다면)
-        var inputController = player.GetComponent<InputSystemPlayerController>();
-        if (inputController != null)
-        {
-            inputController.enabled = false;
-            if (showDebugLogs)
-            {
-                Debug.Log("InputSystemPlayerController 비활성화 완료");
-            }
-        }
+
+        // DangerGaugeSystem을 통해 즉시 사망 및 프리징 처리를 요청합니다.
+        TriggerPlayerDeath(other.gameObject); // 충돌한 오브젝트를 그대로 전달
+
+        // 리스폰 후 다시 감지할 수 있도록 일정 시간 뒤에 트리거 상태를 리셋합니다.
+        StartCoroutine(ResetTrigger());
     }
     
     /// <summary>
     /// 사망 이펙트 재생
     /// </summary>
-    private void PlayDeathEffects(Vector3 position)
+    private void PlayDeathEffects(Vector3 playerPosition)
     {
         // 파티클 이펙트 재생
         if (deathParticleEffect != null)
         {
-            if (!deathParticleEffect.isPlaying)
-            {
-                deathParticleEffect.transform.position = position;
-                deathParticleEffect.Play();
-                if (showDebugLogs)
-                {
-                    Debug.Log("낙사 파티클 이펙트 재생");
-                }
-            }
+            // 이펙트가 플레이어를 따라다니지 않도록 월드 좌표에 독립적으로 생성
+            Instantiate(deathParticleEffect, playerPosition, Quaternion.identity);
+            if (showDebugLogs) Debug.Log("낙사 파티클 이펙트 생성 및 재생");
         }
         
         // 이펙트 오브젝트 생성
         if (deathEffect != null)
         {
-            GameObject effect = Instantiate(deathEffect, position, Quaternion.identity);
+            GameObject effect = Instantiate(deathEffect, playerPosition, Quaternion.identity);
             Destroy(effect, effectDuration);
             if (showDebugLogs)
             {
-                Debug.Log($"낙사 이펙트 생성: {position}");
+                Debug.Log($"낙사 이펙트 생성: {playerPosition}");
             }
         }
     }
@@ -214,94 +107,37 @@ public class FallDamageDetector : MonoBehaviour
     /// </summary>
     private void TriggerPlayerDeath(GameObject player)
     {
-        if (showDebugLogs)
-        {
-            Debug.Log($"=== TriggerPlayerDeath 호출됨. 플레이어 오브젝트: {player.name} ===");
-        }
-        
-        // 1. DangerGaugeSystem 우선 처리 - 위험도를 최대치로 올려서 즉시 사망 처리
-        DangerGaugeSystem dangerSystem = player.GetComponent<DangerGaugeSystem>();
-        if (showDebugLogs)
-        {
-            Debug.Log($"DangerGaugeSystem 컴포넌트 검색 결과: {(dangerSystem != null ? "발견됨" : "null")}");
-            
-            // 모든 컴포넌트 나열
-            var allComponents = player.GetComponents<MonoBehaviour>();
-            Debug.Log($"플레이어의 모든 MonoBehaviour 컴포넌트 ({allComponents.Length}개):");
-            foreach (var comp in allComponents)
-            {
-                Debug.Log($"  - {comp.GetType().Name}");
-            }
-        }
-        
+        // 충돌한 오브젝트의 부모를 포함하여 DangerGaugeSystem을 찾습니다.
+        // 이것이 이 문제의 핵심 해결책입니다.
+        DangerGaugeSystem dangerSystem = player.GetComponentInParent<DangerGaugeSystem>();
+
         if (dangerSystem != null)
         {
-            // 위험도를 최대치로 설정하여 자동으로 사망 처리되도록 함
-            dangerSystem.IncreaseDanger(999999f);
+            // 이 메서드 호출 즉시 DangerGaugeSystem의 Die() -> FreezePlayer()가 실행되어
+            // Rigidbody가 Kinematic으로 변경되고 그 자리에 멈추게 됩니다.
+            dangerSystem.KillPlayer("Fell into a hazard"); 
             if (showDebugLogs)
             {
-                Debug.Log("DangerGaugeSystem 위험도 최대치로 설정 - 자동 사망 처리");
+                Debug.Log("DangerGaugeSystem.KillPlayer() 호출 완료. 사망 및 프리징 처리를 위임합니다.");
             }
-            return;
         }
-        
-        // 2. Health 시스템이 있다면 즉시 사망 처리
-        Health healthComponent = player.GetComponent<Health>();
-        if (healthComponent != null)
+        else
         {
-            healthComponent.TakeDamage(999999f); // 충분히 큰 데미지로 즉시 사망
-            if (showDebugLogs)
-            {
-                Debug.Log("Health 시스템으로 즉시 사망 처리");
-            }
-            return;
+            // DangerGaugeSystem이 없는 경우를 대비한 경고 로그
+            Debug.LogError("플레이어에서 DangerGaugeSystem을 찾을 수 없어 프리징 처리를 할 수 없습니다! 플레이어가 계속 떨어질 수 있습니다.");
+            // 백업으로 GameEvents를 직접 호출할 수 있지만, 프리징은 보장되지 않습니다.
+            GameEvents.PlayerDied();
         }
-        
-        // 3. 백업: 태그로 Player 찾아서 직접 DangerGaugeSystem 호출 시도
-        GameObject playerByTag = GameObject.FindGameObjectWithTag("Player");
-        if (playerByTag != null)
-        {
-            DangerGaugeSystem dangerSystemByTag = playerByTag.GetComponent<DangerGaugeSystem>();
-            if (dangerSystemByTag != null)
-            {
-                dangerSystemByTag.IncreaseDanger(999999f);
-                if (showDebugLogs)
-                {
-                    Debug.Log("태그로 찾은 Player의 DangerGaugeSystem으로 사망 처리");
-                }
-                return;
-            }
-            else
-            {
-                // Player에 DangerGaugeSystem이 없다면 즉시 추가
-                DangerGaugeSystem newDangerSystem = playerByTag.AddComponent<DangerGaugeSystem>();
-                newDangerSystem.IncreaseDanger(999999f);
-                if (showDebugLogs)
-                {
-                    Debug.Log("Player에 DangerGaugeSystem 추가 후 사망 처리");
-                }
-                return;
-            }
-        }
-        
-        // 4. Scene에서 DangerGaugeSystem 직접 검색 시도
-        DangerGaugeSystem anyDangerSystem = FindAnyObjectByType<DangerGaugeSystem>();
-        if (anyDangerSystem != null)
-        {
-            anyDangerSystem.IncreaseDanger(999999f);
-            if (showDebugLogs)
-            {
-                Debug.Log("Scene에서 찾은 DangerGaugeSystem으로 사망 처리");
-            }
-            return;
-        }
-        
-        // 5. 최종 백업: GameEvents로 사망 이벤트 발생
-        GameEvents.PlayerDied();
-        if (showDebugLogs)
-        {
-            Debug.Log("GameEvents.PlayerDied() 직접 호출");
-        }
+    }
+
+    /// <summary>
+    /// 일정 시간 후 트리거를 다시 활성화하는 코루틴
+    /// </summary>
+    private IEnumerator ResetTrigger()
+    {
+        // 플레이어가 리스폰할 시간을 충분히 줍니다.
+        yield return new WaitForSeconds(3f);
+        hasTriggered = false;
     }
     
     /// <summary>

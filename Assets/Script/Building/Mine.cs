@@ -8,48 +8,21 @@ public class Mine : MonoBehaviour, IInteractable
 {
     [Header("Mine Settings")]
     [SerializeField] private BuildingRecipe activationRecipe;
-    [SerializeField] private bool isActive = false;
     [SerializeField] private bool isBuilt = false;
-    
-    [Header("Production")]
-    [SerializeField] private MineralData producedMineral;
-    [SerializeField] private int productionAmount = 1;
-    [SerializeField] private float productionTime = 10f;
-    [SerializeField] private int currentStock = 0;
-    [SerializeField] private int maxStock = 10;
     
     [Header("Visual")]
     [SerializeField] private Renderer objectRenderer;
     [SerializeField] private Material inactiveMaterial;
     [SerializeField] private Material activeMaterial;
-    [SerializeField] private Material productionMaterial;
-    
-    [Header("Debug")]
-    [SerializeField] private float productionTimer = 0f;
-    
-    private Coroutine productionCoroutine;
     
     // Public 속성들
     public bool IsBuilt => isBuilt;
-    public bool IsActive => isActive;
-    public bool IsActiveAndBuilt => isActive && isBuilt;
     
     private void Awake()
     {
         if (objectRenderer == null)
         {
             objectRenderer = GetComponent<Renderer>();
-        }
-        
-        // 레시피에서 생산 정보 가져오기
-        if (activationRecipe != null)
-        {
-            if (activationRecipe.producedMineral != null)
-            {
-                producedMineral = activationRecipe.producedMineral;
-            }
-            productionAmount = activationRecipe.productionAmount;
-            productionTime = activationRecipe.productionTime;
         }
         
         UpdateVisual();
@@ -66,57 +39,41 @@ public class Mine : MonoBehaviour, IInteractable
         }
     }
     
+    public void StopInteract()
+    {
+        // 광산은 홀드 상호작용이 없으므로 비워둡니다.
+    }
+
     public bool CanInteract()
     {
-        if (!isBuilt)
-        {
-            // 건설 가능한지 확인
-            return activationRecipe != null && activationRecipe.CanAfford();
-        }
-        else if (isActive)
-        {
-            // 생산된 자원 수집 가능한지 확인
-            return currentStock > 0;
-        }
-        
-        return false;
+        // 건설되지 않았고, 건설 비용이 충분할 때만 상호작용 가능
+        return !isBuilt && activationRecipe != null && activationRecipe.CanAfford();
     }
     
     public void Interact()
     {
-        if (!isBuilt && CanInteract())
+        if (CanInteract())
         {
             BuildMine();
-        }
-        else if (isActive && currentStock > 0)
-        {
-            CollectResources();
         }
     }
     
     public string GetInteractionText()
     {
+        // 이미 건설되었다면 상호작용 텍스트를 표시하지 않음
         if (!isBuilt)
         {
-            if (activationRecipe != null && activationRecipe.CanAfford())
+            string costText = activationRecipe.GetCostAsString();
+            if (CanInteract())
             {
-                return $"Build Mine (Produces {producedMineral?.mineralName})";
+                return $"Build {activationRecipe.recipeName}\n{costText}";
             }
             else
             {
-                return "Need more resources to build";
+                return $"Build {activationRecipe.recipeName}\n<color=red>Need more resources</color>\n{costText}";
             }
         }
-        else if (isActive && currentStock > 0)
-        {
-            return $"Collect {producedMineral?.mineralName} x{currentStock}";
-        }
-        else if (isActive)
-        {
-            return "Mine is producing...";
-        }
-        
-        return "Inactive Mine";
+        return $"{activationRecipe.recipeName} (Built)\nPress 'W' to Teleport";
     }
     
     /// <summary>
@@ -130,92 +87,15 @@ public class Mine : MonoBehaviour, IInteractable
         if (activationRecipe.ConsumeCost())
         {
             isBuilt = true;
-            isActive = true;
-            
-            // 생산 시작
-            StartProduction();
             
             // 비주얼 업데이트
             UpdateVisual();
             
             // 이벤트 발생
-            GameEvents.BuildingActivated($"Mine_{producedMineral?.mineralName}");
+            GameEvents.BuildingActivated($"Mine_{activationRecipe.recipeName}");
             
-            Debug.Log($"Mine built! Now producing {producedMineral?.mineralName}");
+            Debug.Log($"Mine built!");
         }
-    }
-    
-    /// <summary>
-    /// 생산 시작
-    /// </summary>
-    private void StartProduction()
-    {
-        if (productionCoroutine != null)
-        {
-            StopCoroutine(productionCoroutine);
-        }
-        
-        productionCoroutine = StartCoroutine(ProductionLoop());
-    }
-    
-    /// <summary>
-    /// 생산 중지
-    /// </summary>
-    private void StopProduction()
-    {
-        if (productionCoroutine != null)
-        {
-            StopCoroutine(productionCoroutine);
-            productionCoroutine = null;
-        }
-    }
-    
-    /// <summary>
-    /// 생산 루프 코루틴
-    /// </summary>
-    private IEnumerator ProductionLoop()
-    {
-        while (isActive)
-        {
-            yield return new WaitForSeconds(productionTime);
-            
-            if (currentStock < maxStock)
-            {
-                ProduceResource();
-            }
-        }
-    }
-    
-    /// <summary>
-    /// 자원 생산
-    /// </summary>
-    private void ProduceResource()
-    {
-        if (producedMineral == null) return;
-        
-        currentStock += productionAmount;
-        currentStock = Mathf.Min(currentStock, maxStock);
-        
-        // 이벤트 발생
-        GameEvents.MineralProduced(producedMineral, productionAmount);
-        
-        Debug.Log($"Mine produced {productionAmount} {producedMineral.mineralName}. Stock: {currentStock}/{maxStock}");
-    }
-    
-    /// <summary>
-    /// 생산된 자원 수집
-    /// </summary>
-    private void CollectResources()
-    {
-        if (currentStock <= 0 || producedMineral == null) return;
-        
-        // ResourceManager에 자원 추가
-        ResourceManager.Instance.AddResource(producedMineral, currentStock);
-        
-        Debug.Log($"Collected {currentStock} {producedMineral.mineralName} from mine");
-        
-        // 재고 초기화
-        currentStock = 0;
     }
     
     /// <summary>
@@ -225,37 +105,14 @@ public class Mine : MonoBehaviour, IInteractable
     {
         if (objectRenderer == null) return;
         
-        if (isActive && activeMaterial != null)
+        if (isBuilt && activeMaterial != null)
         {
             objectRenderer.material = activeMaterial;
-        }
-        else if (isBuilt && productionMaterial != null && currentStock > 0)
-        {
-            objectRenderer.material = productionMaterial;
         }
         else if (inactiveMaterial != null)
         {
             objectRenderer.material = inactiveMaterial;
         }
-    }
-    
-    /// <summary>
-    /// 광산 활성화 상태 설정
-    /// </summary>
-    public void SetActive(bool active)
-    {
-        isActive = active;
-        
-        if (isActive && isBuilt)
-        {
-            StartProduction();
-        }
-        else
-        {
-            StopProduction();
-        }
-        
-        UpdateVisual();
     }
     
     /// <summary>
@@ -265,13 +122,6 @@ public class Mine : MonoBehaviour, IInteractable
     public void BuildMineTest()
     {
         isBuilt = true;
-        isActive = true;
-        StartProduction();
         UpdateVisual();
-    }
-    
-    private void OnDestroy()
-    {
-        StopProduction();
     }
 }

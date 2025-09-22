@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3a6238ff71d99144291bd9c2160ae24c, type: 3}
+  m_Name: Level 4 Recipe
+  m_EditorClassIdentifier: 
+  recipeName: 
+  description: 
+  resourceCosts:
+  - mineral: {fileID: 11400000, guid: afa0c6676f8e0bd40a8ed55614a5641b, type: 2}
+    amount: 5
+  - mineral: {fileID: 11400000, guid: d4faacb5762670b4ab25be6bfa77dc8b, type: 2}
+    amount: 5
+  - mineral: {fileID: 11400000, guid: a06f94d1a759a224e9783a641a89f609, type: 2}
+    amount: 5
+  - mineral: {fileID: 11400000, guid: 2e758906a31b1584d9b97a86467aff6c, type: 2}
+    amount: 5
+  electricityCost: 0
+  producedMineral: {fileID: 0}
+  productionAmount: 1
+  productionTime: 10
+  powerIncrease: 1

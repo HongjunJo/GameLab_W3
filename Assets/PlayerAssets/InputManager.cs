@@ -107,60 +107,6 @@ public class InputManager : MonoBehaviour
         playerInput.Player.Disable();
     }
 
-    public void TestDisable()
-    {
-        playerInput.Player.PrimaryClick.started -= StartDrag;
-        playerInput.Player.PrimaryClick.canceled -= EndDrag;
-        playerInput.Player.PrimaryClick.performed -= OnLeftClick;
-        playerInput.Player.HorizontalLeft.performed -= OnPressA;
-        playerInput.Player.HorizontalRight.performed -= OnPressD;
-        playerInput.Player.HorizontalLeft.canceled -= OffPressA;
-        playerInput.Player.HorizontalRight.canceled -= OffPressD;
-        playerInput.Player.MovementHoriAxis.performed -= OnHoriAxis;
-        playerInput.Player.MovementHoriAxis.canceled -= OnHoriAxis;
-        playerInput.Player.Jump.started -= SpaceStarted;
-        playerInput.Player.Jump.performed -= OnJmup;
-        playerInput.Player.Jump.canceled -= SpaceCanceled;
-        
-        // 2. Action 자체를 비활성화 (핵심!)
-        playerInput.Player.PrimaryClick.Disable();
-        playerInput.Player.HorizontalLeft.Disable();
-        playerInput.Player.HorizontalRight.Disable();
-        playerInput.Player.MovementHoriAxis.Disable();
-        playerInput.Player.Jump.Disable();
-        playerInput.Player.Move.Disable();
-        
-        // 3. 드래그 상태 초기화
-        isDragging = false;
-        draggedObject = null;
-        isClick = false;
-        clickableObject = null;
-
-    }
-    public void TestAble()
-    {
-        // 1. Action 다시 활성화
-        playerInput.Player.PrimaryClick.Enable();
-        playerInput.Player.HorizontalLeft.Enable();
-        playerInput.Player.HorizontalRight.Enable();
-        playerInput.Player.MovementHoriAxis.Enable();
-        playerInput.Player.Jump.Enable();
-        playerInput.Player.Move.Enable();
-    
-        // 2. 이벤트 다시 구독
-        playerInput.Player.Jump.started += SpaceStarted;
-        playerInput.Player.Jump.performed += OnJmup;
-        playerInput.Player.Jump.canceled += SpaceCanceled;
-        playerInput.Player.PrimaryClick.started += StartDrag;
-        playerInput.Player.PrimaryClick.canceled += EndDrag;
-        playerInput.Player.PrimaryClick.performed += OnLeftClick;
-        playerInput.Player.HorizontalLeft.performed += OnPressA;
-        playerInput.Player.HorizontalRight.performed += OnPressD;
-        playerInput.Player.HorizontalLeft.canceled += OffPressA;
-        playerInput.Player.HorizontalRight.canceled += OffPressD;
-        playerInput.Player.MovementHoriAxis.performed += OnHoriAxis;
-        playerInput.Player.MovementHoriAxis.canceled += OnHoriAxis;
-    }
     //TO- DO  : DISABLE 도 통일
     private void OnDestroy()
     {
@@ -229,7 +175,7 @@ public class InputManager : MonoBehaviour
     private void StartDrag(InputAction.CallbackContext context)
     {
         isDragging = true;
-        Debug.Log("Start");
+        // Debug.Log("Start");
         Vector2 mouseScreenPos = playerInput.Player.PointerPosition.ReadValue<Vector2>();
         if (mainCamera == null)
             mainCamera = Camera.main;
@@ -244,7 +190,7 @@ public class InputManager : MonoBehaviour
     // 마우스 드래그 종료
     private void EndDrag(InputAction.CallbackContext context)
     {
-        Debug.Log("End");
+        // Debug.Log("End");
         isDragging = false;
         // 드래그 중인 오브젝트 해제
          draggedObject = null;

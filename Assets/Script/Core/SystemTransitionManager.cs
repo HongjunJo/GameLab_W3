@@ -3,12 +3,10 @@ using UnityEngine;
 /// <summary>
 /// 기존 HPDrainSystem을 비활성화하고 DangerGaugeSystem으로 교체하는 매니저
 /// </summary>
-public class SystemTransitionManager : MonoBehaviour
+public class SystemTransitionManager : MonoBehaviour // HP 시스템 관련 로직 제거
 {
     [Header("System Settings")]
     [SerializeField] private bool useDangerGaugeSystem = true;
-    [SerializeField] private bool disableHPSystem = true;
-    [SerializeField] private bool disableHPDrainSystem = true;
     
     [Header("Auto Setup")]
     [SerializeField] private bool autoSetupOnStart = true;
@@ -37,16 +35,6 @@ public class SystemTransitionManager : MonoBehaviour
         if (useDangerGaugeSystem)
         {
             SetupDangerGaugeSystem(player);
-        }
-        
-        if (disableHPSystem)
-        {
-            DisableHPSystem(player);
-        }
-        
-        if (disableHPDrainSystem)
-        {
-            DisableHPDrainSystem();
         }
         
         // PlayerStatus 컴포넌트 체크 강제 (DangerGaugeSystem 추가 후)
@@ -92,98 +80,5 @@ public class SystemTransitionManager : MonoBehaviour
         {
             Debug.Log($"Found {flags.Length} Flag objects for respawn system");
         }
-    }
-    
-    /// <summary>
-    /// HP 시스템 비활성화
-    /// </summary>
-    private void DisableHPSystem(GameObject player)
-    {
-        var healthComponent = player.GetComponent<Health>();
-        if (healthComponent != null)
-        {
-            healthComponent.enabled = false;
-            Debug.Log("Health component disabled on player");
-        }
-        
-        // HealthUI도 비활성화하거나 DangerUI로 교체
-        var healthUI = FindAnyObjectByType<HealthUI>();
-        if (healthUI != null)
-        {
-            healthUI.gameObject.SetActive(false);
-            Debug.Log("HealthUI disabled");
-            
-            // DangerUI 추가 (같은 GameObject에)
-            var dangerUI = healthUI.gameObject.AddComponent<DangerUI>();
-            healthUI.gameObject.SetActive(true); // UI 오브젝트는 다시 활성화
-            Debug.Log("DangerUI added to replace HealthUI");
-        }
-    }
-    
-    /// <summary>
-    /// HP 드레인 시스템 비활성화
-    /// </summary>
-    private void DisableHPDrainSystem()
-    {
-        var hpDrainSystem = FindAnyObjectByType<HPDrainSystem>();
-        if (hpDrainSystem != null)
-        {
-            hpDrainSystem.enabled = false;
-            Debug.Log("HPDrainSystem disabled");
-        }
-    }
-    
-    /// <summary>
-    /// 시스템 재활성화 (개발자 전용)
-    /// </summary>
-    [ContextMenu("Re-enable HP System")]
-    public void ReEnableHPSystem()
-    {
-        GameObject player = GameObject.FindGameObjectWithTag("Player");
-        if (player == null) return;
-        
-        var healthComponent = player.GetComponent<Health>();
-        if (healthComponent != null)
-        {
-            healthComponent.enabled = true;
-        }
-        
-        var hpDrainSystem = FindAnyObjectByType<HPDrainSystem>();
-        if (hpDrainSystem != null)
-        {
-            hpDrainSystem.enabled = true;
-        }
-        
-        var healthUI = FindAnyObjectByType<HealthUI>();
-        if (healthUI != null)
-        {
-            healthUI.gameObject.SetActive(true);
-        }
-        
-        Debug.Log("HP System re-enabled");
-    }
-    
-    /// <summary>
-    /// 위험도 시스템 비활성화 (개발자 전용)
-    /// </summary>
-    [ContextMenu("Disable Danger System")]
-    public void DisableDangerSystem()
-    {
-        GameObject player = GameObject.FindGameObjectWithTag("Player");
-        if (player == null) return;
-        
-        var dangerSystem = player.GetComponent<DangerGaugeSystem>();
-        if (dangerSystem != null)
-        {
-            dangerSystem.enabled = false;
-        }
-        
-        var dangerUI = FindAnyObjectByType<DangerUI>();
-        if (dangerUI != null)
-        {
-            dangerUI.gameObject.SetActive(false);
-        }
-        
-        Debug.Log("Danger System disabled");
     }
 }

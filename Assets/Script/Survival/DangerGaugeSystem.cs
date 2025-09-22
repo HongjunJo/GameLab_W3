@@ -2,15 +2,15 @@ using UnityEngine;
 using System.Collections;
 
 /// <summary>
-/// 위험도 게이지 시스템 - HP 대신 위험도가 증가하여 100에 도달하면 사망
+/// 산소 게이지 시스템 - 산소가 서서히 감소하여 0에 도달하면 사망
 /// </summary>
 public class DangerGaugeSystem : MonoBehaviour
 {
-    [Header("Danger Settings")]
-    [SerializeField] private float maxDanger = 100f;
-    [SerializeField] private float currentDanger = 0f;
-    [SerializeField] private float dangerIncreaseRate = 3f; // 초당 위험도 증가량
-    [SerializeField] private float dangerDecreaseRate = 10f; // 안전지대에서 초당 위험도 감소량
+    [Header("Oxygen Settings")]
+    [SerializeField] private float maxOxygen = 100f;
+    [SerializeField] private float currentOxygen = 100f; // 100에서 시작
+    [SerializeField] private float oxygenDecreaseRate = 3f; // 초당 산소 소모량
+    [SerializeField] private float oxygenIncreaseRate = 10f; // 안전지대에서 초당 산소 회복량
     
     [Header("Death Settings")]
     [SerializeField] private GameObject deathEffect;
@@ -18,7 +18,6 @@ public class DangerGaugeSystem : MonoBehaviour
     [SerializeField] private float deathEffectDuration = 2f;
     
     [Header("Respawn Settings")]
-    [SerializeField] private Transform respawnPoint;
     [SerializeField] private float respawnDelay = 0.5f;
     [SerializeField] private bool useFlagSystem = true;
     
@@ -28,7 +27,7 @@ public class DangerGaugeSystem : MonoBehaviour
     [Header("Components")]
     private CharacterMove characterMove;
     private CharacterJump characterJump;
-    private Rigidbody2D playerRb;
+    [SerializeField] private Rigidbody2D playerRb; // 인스펙터에서 할당할 수 있도록 변경
     private PlayerStatus playerStatus;
     private SpriteRenderer spriteRenderer;
     
@@ -38,145 +37,137 @@ public class DangerGaugeSystem : MonoBehaviour
     [SerializeField] private bool isInSafeZone = false; // isIncreasing/isDecreasing 대체
     
     // UI에서 표시할 때 100으로 클램프된 값
-    public float DisplayDanger => currentDanger; // 실제 currentDanger 값 그대로 표시
-    public float DangerPercentage => currentDanger / maxDanger;
+    public float DisplayDanger => currentOxygen; // 실제 currentOxygen 값 그대로 표시
+    public float DangerPercentage => currentOxygen / maxOxygen;
     public bool IsAlive => !isDead;
     public bool IsDead => isDead;
     public bool IsInSafeZone => isInSafeZone;
-    public float CurrentIncreaseRate => dangerIncreaseRate;
-    public float CurrentDecreaseRate => dangerDecreaseRate;
+    public float CurrentIncreaseRate => oxygenIncreaseRate; // 이름은 유지하되, 회복률을 반환
+    public float CurrentDecreaseRate => oxygenDecreaseRate; // 이름은 유지하되, 소모율을 반환
 
     
     private void Awake()
     {
         characterMove = GetComponent<CharacterMove>();
         characterJump = GetComponent<CharacterJump>();
-        playerRb = GetComponent<Rigidbody2D>();
+        // playerRb = GetComponentInChildren<Rigidbody2D>(); // 더 이상 자식에서 찾지 않음
         playerStatus = GetComponent<PlayerStatus>();
         spriteRenderer = GetComponent<SpriteRenderer>();
-        
-        // 기본 리스폰 포인트 설정 (설정되지 않았다면 현재 위치)
-        if (respawnPoint == null)
+        if (playerRb == null)
         {
-            GameObject respawnObject = new GameObject("DefaultRespawnPoint");
-            respawnPoint = respawnObject.transform;
-            respawnPoint.position = transform.position;
+            Debug.LogError("Player의 Rigidbody2D가 DangerGaugeSystem의 인스펙터에 할당되지 않았습니다!");
         }
     }
     
     private void Start()
     {
         // 초기 위험도 이벤트 발생
-        GameEvents.DangerChanged(DisplayDanger, maxDanger);
-    }
-    
-    private void OnEnable()
-    {
-        GameEvents.OnExitedSafeZone += HandleExitSafeZone;
-        GameEvents.OnEnteredSafeZone += HandleEnterSafeZone;
-    }
-    
-    private void OnDisable()
-    {
-        GameEvents.OnExitedSafeZone -= HandleExitSafeZone;
-        GameEvents.OnEnteredSafeZone -= HandleEnterSafeZone;
+        currentOxygen = maxOxygen; // 시작 시 산소 가득 채움
+        GameEvents.DangerChanged(DisplayDanger, maxOxygen);
     }
     
     private void Update()
     {
         if (isDead || isRespawning) return;
 
+        // 매 프레임 안전지대 상태를 직접 확인합니다.
+        // 이 방식이 OnTriggerStay와 동일한 안정성을 제공합니다.
+        bool currentlyInSafeZone = IsPlayerInSafeZone();
+        if (isInSafeZone != currentlyInSafeZone) {
+            SetSafeZoneStatus(currentlyInSafeZone);
+        }
+
         bool dangerChanged = false;
 
         if (!isInSafeZone) // 위험 지대
         {
-            // 값이 실제로 변경되었을 때만 dangerChanged를 true로 설정
-            dangerChanged = IncreaseDanger(dangerIncreaseRate * Time.deltaTime);
+            // 산소 소모
+            dangerChanged = DecreaseDanger(oxygenDecreaseRate * Time.deltaTime);
         }
-        else if (isInSafeZone && currentDanger > 0) // 안전 지대이고, 위험도가 0보다 클 때
+        else if (isInSafeZone && currentOxygen < maxOxygen) // 안전 지대이고, 산소가 가득 차지 않았을 때
         {
-            // 값이 실제로 변경되었을 때만 dangerChanged를 true로 설정
-            dangerChanged = DecreaseDanger(dangerDecreaseRate * Time.deltaTime);
+            // 산소 회복
+            dangerChanged = IncreaseDanger(oxygenIncreaseRate * Time.deltaTime);
         }
-
+        
         if (dangerChanged) {
-            GameEvents.DangerChanged(DisplayDanger, maxDanger);
+            GameEvents.DangerChanged(DisplayDanger, maxOxygen);
         }
     }
     
     /// <summary>
     /// 위험도 증가
+    /// (산소 시스템에서는 '회복'의 의미로 사용)
     /// </summary>
     public bool IncreaseDanger(float amount)
     {
         if (isDead || amount <= 0 || isRespawning) return false;
         
-        currentDanger += amount;
+        currentOxygen += amount;
+        currentOxygen = Mathf.Min(currentOxygen, maxOxygen); // 최대치를 넘지 않도록
         
-        // 100 이상이 되면 사망
-        if (currentDanger >= maxDanger && !isDead)
+        return true;
+    }
+    
+    /// <summary>
+    /// 위험도 감소
+    /// (산소 시스템에서는 '소모'의 의미로 사용)
+    /// </summary>
+    public bool DecreaseDanger(float amount)
+    {
+        if (isDead || amount <= 0 || isRespawning) return false;
+        
+        currentOxygen -= amount;
+        
+        // 0 이하가 되면 사망
+        if (currentOxygen <= 0f && !isDead)
         {
+            currentOxygen = 0f;
             Die();
         }
         return true;
     }
     
     /// <summary>
-    /// 위험도 감소
-    /// </summary>
-    public bool DecreaseDanger(float amount)
-    {
-        if (isDead || amount <= 0 || isRespawning) return false;
-        
-        currentDanger -= amount;
-        
-        // 0 미만으로 내려가지 않도록 클램프
-        currentDanger = Mathf.Max(0f, currentDanger);
-        
-        // 0에 도달하면 완전 안전
-        if (currentDanger <= 0f)
-        {
-            currentDanger = 0f;
-            Debug.Log("Danger gauge fully recovered to 0");
-        }
-        return true;
-    }
-    
-    /// <summary>
     /// 위험도 완전 초기화
+    /// (산소 시스템에서는 '완전 회복'의 의미로 사용)
     /// </summary>
     public void ResetDanger()
     {
-        currentDanger = 0f;
+        currentOxygen = maxOxygen;
         SetSafeZoneStatus(true); // 안전한 상태로 초기화
-        GameEvents.DangerChanged(DisplayDanger, maxDanger);
-        Debug.Log("Danger gauge reset to 0");
+        GameEvents.DangerChanged(DisplayDanger, maxOxygen);
+        Debug.Log("Oxygen gauge reset to 100");
     }
     
-    private void HandleEnterSafeZone()
-    {
-        SetSafeZoneStatus(true);
-    }
-
-    private void HandleExitSafeZone()
-    {
-        SetSafeZoneStatus(false);
-    }
-
     /// <summary>
     /// 안전지대 상태를 설정하고 관련 로직을 처리하는 중앙 메서드
     /// </summary>
     private void SetSafeZoneStatus(bool inSafeZone)
     {
-        if (isDead || isRespawning) return; // 사망 또는 리스폰 중에는 상태 변경 방지
+        if (isDead) return; // 사망 중에는 상태 변경 방지 (리스폰 중에는 허용)
+
+        // 상태가 실제로 변경될 때만 로그를 출력하여 중복을 피합니다.
+        if (isInSafeZone == inSafeZone) return;
 
         isInSafeZone = inSafeZone;
 
         if (isInSafeZone) {
-            Debug.Log($"안전지대 진입. 위험도 감소 시작 (현재: {currentDanger:F1})");
+            Debug.Log($"안전지대 진입. 산소 회복 시작 (현재: {currentOxygen:F1})");
         } else {
-            Debug.Log("위험지대 진입. 위험도 증가 시작.");
+            Debug.Log($"위험지대 진입. 산소 소모 시작. (현재: {currentOxygen:F1})");
         }
+    }
+    
+    /// <summary>
+    /// 외부 시스템에서 플레이어를 즉시 사망 처리할 때 호출
+    /// </summary>
+    /// <param name="cause">사망 원인 (로그용)</param>
+    public void KillPlayer(string cause)
+    {
+        Debug.Log($"플레이어 즉시 사망 처리 요청. 원인: {cause}");
+        currentOxygen = 0f;
+        Die();
     }
     
     /// <summary>
@@ -189,9 +180,9 @@ public class DangerGaugeSystem : MonoBehaviour
         isDead = true;
         
         // 위험도를 최대값으로 고정하여 더 이상 변화하지 않도록
-        currentDanger = maxDanger;
+        currentOxygen = 0f;
         
-        Debug.Log($"Player died from danger overload! Danger fixed at {maxDanger}");
+        Debug.Log($"Player died from oxygen depletion! Oxygen fixed at 0");
         
         // 플레이어 사망 이벤트 발생
         GameEvents.PlayerDied();
@@ -199,6 +190,12 @@ public class DangerGaugeSystem : MonoBehaviour
         // 플레이어 제어 비활성화 및 프리징
         DisablePlayerControl();
         FreezePlayer();
+
+        // MovementLimiter를 통해 추가적으로 움직임 제한
+        if (MovementLimiter.Instance != null)
+        {
+            MovementLimiter.Instance.SetCanMove(false);
+        }
         
         // 죽음 효과 시작 (메테리얼 변경, 프리징, 이펙트)
         StartCoroutine(DeathSequence());
@@ -209,16 +206,11 @@ public class DangerGaugeSystem : MonoBehaviour
     /// </summary>
     private void DisablePlayerControl()
     {
-        if (characterMove != null)
-        {
-            characterMove.enabled = false;
-        }
-        
-        if (characterJump != null)
-        {
-            characterJump.enabled = false;
-        }
-        
+        // .enabled를 직접 제어하는 대신 MovementLimiter를 사용합니다.
+        // characterMove.enabled = false;
+        // characterJump.enabled = false;
+        Debug.Log("Player control disabled via MovementLimiter.");
+
         // 물리 정지
         if (playerRb != null)
         {
@@ -248,10 +240,12 @@ public class DangerGaugeSystem : MonoBehaviour
     /// </summary>
     private void UnfreezePlayer()
     {
-        // 컴포넌트 재참조 (런타임 추가된 경우 대비)
+        // playerRb 참조가 유실되었을 경우를 대비해 다시 가져옵니다.
         if (playerRb == null)
-            playerRb = GetComponent<Rigidbody2D>();
-            
+        {
+            Debug.LogError("Player의 Rigidbody2D 참조가 유실되었습니다. 인스펙터 할당을 확인하세요.");
+        }
+
         if (playerRb != null)
         {
             // 다이나믹으로 복원
@@ -296,37 +290,15 @@ public class DangerGaugeSystem : MonoBehaviour
     /// </summary>
     private void EnablePlayerControl()
     {
-        // 컴포넌트 재참조 (런타임 추가된 경우 대비)
-        if (characterMove == null)
-            characterMove = GetComponent<CharacterMove>();
-        if (characterJump == null)
-            characterJump = GetComponent<CharacterJump>();
-        
-        if (characterMove != null)
+        // .enabled를 직접 제어하는 대신 MovementLimiter를 사용합니다.
+        // characterMove.enabled = true;
+        // characterJump.enabled = true;
+
+        // MovementLimiter를 통해 움직임 제한 해제
+        if (MovementLimiter.Instance != null)
         {
-            characterMove.enabled = true;
-            Debug.Log("CharacterMove 활성화됨");
-        }
-        else
-        {
-            Debug.LogError("CharacterMove 컴포넌트를 찾을 수 없음!");
-        }
-        
-        if (characterJump != null)
-        {
-            characterJump.enabled = true;
-            Debug.Log("CharacterJump 활성화됨");
-        }
-        else
-        {
-            Debug.LogError("CharacterJump 컴포넌트를 찾을 수 없음!");
-        }
-        
-        // InputManager 재활성화 확인
-        if (InputManager.Instance != null)
-        {
-            InputManager.Instance.TestAble();
-            Debug.Log("InputManager.TestAble() 추가 호출");
+            MovementLimiter.Instance.SetCanMove(true);
+            Debug.Log("MovementLimiter를 통해 플레이어 제어 복구됨");
         }
     }
     
@@ -391,12 +363,30 @@ public class DangerGaugeSystem : MonoBehaviour
         // 2. 리스폰 위치로 플레이어 이동
         if (useFlagSystem)
         {
-            RespawnToNearestFlag();
-        }
-        else if (respawnPoint != null)
-        {
-            transform.position = respawnPoint.position;
-            Debug.Log($"수동 리스폰 포인트로 이동: {respawnPoint.position}");
+            // PlayerStatus에서 현재 섹터 정보를 가져옵니다.
+            if (playerStatus != null && playerStatus.CurrentSector != null)
+            {
+                // 섹터에 지정된 리스폰 포인트가 있다면 그곳으로 이동합니다.
+                Transform sectorRespawnPoint = playerStatus.CurrentSector.RespawnPoint;
+                Vector3 targetPos = new Vector3(sectorRespawnPoint.position.x, sectorRespawnPoint.position.y, 0);
+                
+                Debug.Log($"'{playerStatus.CurrentSector.SectorName}' 섹터의 지정된 위치({sectorRespawnPoint.name})에서 리스폰합니다. -> {targetPos}");
+
+                if (playerRb != null)
+                {
+                    playerRb.transform.position = targetPos;
+                }
+                else
+                {
+                    Debug.LogError("리스폰할 대상(playerRb)이 지정되지 않았습니다!");
+                }
+            }
+            else
+            {
+                // 현재 속한 섹터가 없다면, 메인 Flag에서 리스폰합니다.
+                Debug.Log("현재 속한 섹터가 없어, 메인 Flag를 찾습니다.");
+                if (playerRb != null) RespawnToMainFlag(playerRb.transform);
+            }
         }
         else
         {
@@ -409,7 +399,7 @@ public class DangerGaugeSystem : MonoBehaviour
 
         // 4. 플레이어 상태 초기화 (가장 중요)
         isDead = false;
-        currentDanger = 0f; // 위험도를 0으로 초기화
+        currentOxygen = maxOxygen; // 산소를 100으로 초기화
 
         UnfreezePlayer();
         EnablePlayerControl();
@@ -420,80 +410,65 @@ public class DangerGaugeSystem : MonoBehaviour
         }
 
         // 5. UI 업데이트: 초기화된 값(0)을 UI에 즉시 반영
-        GameEvents.DangerChanged(currentDanger, maxDanger);
-        Debug.Log("리스폰 완료. 위험도 0으로 초기화 및 UI 업데이트됨.");
+        GameEvents.DangerChanged(currentOxygen, maxOxygen);
+        Debug.Log("리스폰 완료. 산소 100으로 초기화 및 UI 업데이트됨.");
+        
+        // 리스폰 후 최종 위치 확인
+        if (playerRb != null)
+        {
+            Debug.Log($"[최종 위치 확인] 리스폰 후 플레이어 위치: {playerRb.transform.position}");
+        }
 
         // 6. 한 프레임 더 대기: 물리 이벤트(OnTrigger) 등이 처리될 시간을 줌
         yield return null;
 
-        // 7. 리스폰 상태 해제: 이제부터 정상적인 게임 로직(위험도 증가 등)이 작동 가능
+        // 7. 리스폰 상태를 먼저 해제
         isRespawning = false;
 
-        // 8. 새로운 위치에서 안전지대 여부 확인 (리스폰이 완전히 끝난 후)
-        // isRespawning이 false가 되었으므로, 이 호출로 인해 위험도가 즉시 증가할 수 있음
-        // 이 시점에는 이미 Flag의 OnTriggerEnter가 호출되어 isInSafeZone이 true일 확률이 높음
-        CheckSafeZoneStatus();
+        // 8. 새로운 위치에서 안전지대 여부 즉시 확인
+        SetSafeZoneStatus(IsPlayerInSafeZone());
     }
 
     /// <summary>
-    /// 가장 가까운 Flag로 리스폰
+    /// 메인 Flag로 리스폰합니다.
     /// </summary>
-    private void RespawnToNearestFlag()
+    private void RespawnToMainFlag(Transform playerTransform)
     {
         Flag[] flags = FindObjectsByType<Flag>(FindObjectsSortMode.None);
-        Flag nearestActiveFlag = null;
-        float nearestDistance = float.MaxValue;
+        Flag mainFlag = null;
         
-        Debug.Log($"Found {flags.Length} flags, searching for active ones...");
+        Debug.Log($"Found {flags.Length} flags, searching for the main flag...");
         
         foreach (Flag flag in flags)
         {
-            Debug.Log($"Flag: {flag.name}, IsActive: {flag.IsActive}");
-            if (flag.IsActive)
+            if (flag.isMainFlag)
             {
-                float distance = Vector3.Distance(transform.position, flag.transform.position);
-                Debug.Log($"Active flag {flag.name} at distance {distance}");
-                if (distance < nearestDistance)
-                {
-                    nearestDistance = distance;
-                    nearestActiveFlag = flag;
-                }
+                mainFlag = flag;
+                break;
             }
         }
         
-        if (nearestActiveFlag != null)
+        if (mainFlag != null)
         {
-            Debug.Log($"Respawning to nearest active flag: {nearestActiveFlag.name}");
-            nearestActiveFlag.TeleportPlayerHere(); // Flag의 기존 로직 사용
-        }
-        else if (flags.Length > 0)
-        {
-            Debug.Log($"No active flags found, using first flag: {flags[0].name}");
-            flags[0].TeleportPlayerHere(); // 첫 번째 Flag 사용
+            Debug.Log($"메인 Flag에서 리스폰합니다: {mainFlag.name}");
+            Vector3 targetPos = new Vector3(mainFlag.transform.position.x, mainFlag.transform.position.y, 0);
+            playerTransform.position = targetPos;
+            Debug.Log($"플레이어 위치를 {targetPos}로 이동시킴");
         }
         else
         {
-            Debug.LogWarning("No flags found, respawning at origin");
-            transform.position = Vector3.zero;
+            Debug.LogWarning("메인 Flag를 찾을 수 없어 원점(0,0,0)으로 리스폰합니다.");
+            playerTransform.position = Vector3.zero;
         }
-    }
-    
-    /// <summary>
-    /// 리스폰 포인트 설정
-    /// </summary>
-    public void SetRespawnPoint(Transform newRespawnPoint)
-    {
-        respawnPoint = newRespawnPoint;
-        Debug.Log($"Respawn point set to: {respawnPoint.position}");
     }
     
     /// <summary>
     /// 위험도 증가율 설정
     /// </summary>
-    public void SetDangerIncreaseRate(float newRate)
+    public void SetOxygenDecreaseRate(float newRate)
     {
-        dangerIncreaseRate = newRate;
-        Debug.Log($"Danger increase rate set to: {dangerIncreaseRate}/sec");
+        oxygenDecreaseRate = newRate;
+        Debug.Log($"Oxygen decrease rate set to: {oxygenDecreaseRate}/sec");
     }
     
     /// <summary>
@@ -512,40 +487,33 @@ public class DangerGaugeSystem : MonoBehaviour
     /// </summary>
     public string GetDangerInfo()
     {
-        return $"Danger: {DisplayDanger:F1}/{maxDanger}, InSafeZone: {isInSafeZone}, Dead: {isDead}";
+        return $"Oxygen: {DisplayDanger:F1}/{maxOxygen}, InSafeZone: {isInSafeZone}, Dead: {isDead}";
     }
     
     /// <summary>
     /// 현재 위치에서 안전지대 상태 강제 확인
     /// </summary>
-    private void CheckSafeZoneStatus()
+    public bool IsPlayerInSafeZone()
     {
-        // 리스폰 중에는 이 로직을 실행하지 않음
-        if (isRespawning) return;
-
         // 현재 위치에서 안전지대 콜라이더 확인
-        Collider2D[] colliders = Physics2D.OverlapCircleAll(transform.position, 1f);
-        bool inSafeZone = false;
+        if (playerRb == null)
+        {
+            Debug.LogError("CheckSafeZoneStatus: playerRb가 할당되지 않아 안전지대 상태를 확인할 수 없습니다.");
+            return false;
+        }
+
+        // 플레이어의 위치를 기준으로 안전지대 콜라이더를 확인합니다.
+        Collider2D[] colliders = Physics2D.OverlapCircleAll(playerRb.transform.position, 0.1f);
 
         foreach (var collider in colliders)
         {
-            if (collider.CompareTag("SafeZone")) // Flag 또는 SafeZone 오브젝트에 "SafeZone" 태그 사용 권장
+            // SafeZone 컴포넌트가 있고, 해당 SafeZone이 활성화 상태인지 확인합니다.
+            SafeZone zone = collider.GetComponent<SafeZone>();
+            if (zone != null && zone.IsActive)
             {
-                inSafeZone = true;
-                Debug.Log($"안전지대({collider.name}) 안에 있음.");
-                break;
+                return true;
             }
         }
-
-        if (inSafeZone)
-        {
-            SetSafeZoneStatus(true);
-        }
-        else
-        {
-            Debug.Log($"위험지대 안에 있음. 위험도 증가 로직 시작.");
-            SetSafeZoneStatus(false);
-        }
-
+        return false;
     }
 }

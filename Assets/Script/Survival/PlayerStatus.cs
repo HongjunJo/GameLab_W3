@@ -7,15 +7,9 @@ public class PlayerStatus : MonoBehaviour
 {
     [Header("Status")]
     [SerializeField] private bool isDead = false;
-    
-    [Header("Spawn Settings")]
-    [SerializeField] private Transform lastSafeZonePosition;
-    [SerializeField] private SafeZone lastSafeZone;
     public bool IsDead => isDead;
-    public Transform LastSafeZonePosition => lastSafeZonePosition;
-    public SafeZone LastSafeZone => lastSafeZone;
+    public RespawnSector CurrentSector { get; private set; }
     
-    private Health healthComponent;
     private DangerGaugeSystem dangerGaugeSystem;
     
     private void Awake()
@@ -33,20 +27,15 @@ public class PlayerStatus : MonoBehaviour
     private void CheckComponents()
     {
         // Health 또는 DangerGaugeSystem 중 하나라도 있으면 OK
-        healthComponent = GetComponent<Health>();
         dangerGaugeSystem = GetComponent<DangerGaugeSystem>();
         
-        if (healthComponent == null && dangerGaugeSystem == null)
+        if (dangerGaugeSystem == null)
         {
-            Debug.LogWarning("PlayerStatus: No Health or DangerGaugeSystem found. Waiting for SystemTransitionManager...");
+            Debug.LogWarning("PlayerStatus: DangerGaugeSystem not found. Waiting for SystemTransitionManager...");
         }
-        else if (dangerGaugeSystem != null)
+        else
         {
             Debug.Log("PlayerStatus using DangerGaugeSystem");
-        }
-        else if (healthComponent != null)
-        {
-            Debug.Log("PlayerStatus using Health component");
         }
     }
     
@@ -70,29 +59,6 @@ public class PlayerStatus : MonoBehaviour
     }
     
     /// <summary>
-    /// 현재 안전지대 위치 기록
-    /// </summary>
-    private void RecordCurrentSafeZone()
-    {
-        lastSafeZonePosition = transform;
-        
-        // 현재 있는 SafeZone 찾기
-        Collider2D[] colliders = Physics2D.OverlapCircleAll(transform.position, 0.5f);
-        foreach (var col in colliders)
-        {
-            SafeZone safeZone = col.GetComponent<SafeZone>();
-            if (safeZone != null && safeZone.IsActive)
-            {
-                lastSafeZone = safeZone;
-                lastSafeZonePosition = safeZone.transform;
-                break;
-            }
-        }
-        
-        Debug.Log($"Recorded safe zone position: {lastSafeZonePosition.position}");
-    }
-    
-    /// <summary>
     /// 플레이어 사망 처리
     /// </summary>
     private void HandlePlayerDeath()
@@ -106,38 +72,29 @@ public class PlayerStatus : MonoBehaviour
             Debug.Log("DangerGaugeSystem will handle respawn");
             return;
         }
-        
-        // Health 시스템만 있는 경우에만 기존 리스폰 로직 사용
-        if (healthComponent != null)
-        {
-            Invoke(nameof(RespawnPlayer), 1f);
-        }
     }
     
     /// <summary>
-    /// 플레이어 리스폰 (Health 시스템용)
+    /// 플레이어가 새로운 리스폰 섹터에 진입했을 때 호출됩니다.
     /// </summary>
-    private void RespawnPlayer()
+    public void EnterRespawnSector(RespawnSector sector)
     {
-        if (lastSafeZonePosition != null)
+        // 새로운 섹터에 진입하면 현재 섹터로 설정
+        CurrentSector = sector;
+        Debug.Log($"플레이어가 '{sector.SectorName}' 섹터에 진입했습니다. 리스폰 포인트: {sector.RespawnPoint.name}");
+    }
+
+    /// <summary>
+    /// 플레이어가 리스폰 섹터에서 나갔을 때 호출됩니다. (RespawnSector의 OnTriggerExit2D에서 호출)
+    /// </summary>
+    public void ExitRespawnSector(RespawnSector sector)
+    {
+        // 현재 플레이어가 속해있다고 기록된 섹터에서 나가는 경우에만 CurrentSector를 null로 설정합니다.
+        // 또한, 플레이어가 사망한 상태에서는 리스폰 위치 정보를 유지하기 위해 이 로직을 건너뜁니다.
+        if (CurrentSector == sector && !isDead)
         {
-            // 마지막 안전지대로 이동
-            transform.position = lastSafeZonePosition.position;
-            
-            // 체력 회복
-            if (healthComponent != null)
-            {
-                healthComponent.Revive();
-            }
-            
-            // 상태 초기화
-            isDead = false;
-            
-            Debug.Log($"Player respawned at: {transform.position}");
-        }
-        else
-        {
-            Debug.LogError("No safe zone recorded for respawn!");
+            CurrentSector = null;
+            Debug.Log($"플레이어가 '{sector.SectorName}' 섹터에서 나갔습니다. 현재 섹터가 없습니다.");
         }
     }
     
@@ -147,23 +104,7 @@ public class PlayerStatus : MonoBehaviour
     public void OnRespawnCompleted()
     {
         isDead = false;
-        // 리스폰 시 새로운 안전지대 위치 기록
-        // DangerGaugeSystem이 리스폰 위치를 결정하므로, 그 후에 호출됨
-        if (dangerGaugeSystem != null && dangerGaugeSystem.IsAlive)
-        {
-            RecordCurrentSafeZone();
-        }
         Debug.Log("PlayerStatus: Respawn completed");
-    }
-    
-    /// <summary>
-    /// 수동으로 리스폰 포인트 설정
-    /// </summary>
-    public void SetRespawnPoint(Transform newRespawnPoint, SafeZone safeZone = null)
-    {
-        lastSafeZonePosition = newRespawnPoint;
-        lastSafeZone = safeZone;
-        Debug.Log($"Respawn point set to: {newRespawnPoint.position}");
     }
     
     /// <summary>
@@ -171,13 +112,6 @@ public class PlayerStatus : MonoBehaviour
     /// </summary>
     public string GetStatusInfo()
     {
-        bool currentSafeZoneStatus = false;
-        if (dangerGaugeSystem != null)
-        {
-            // 실시간 상태는 DangerGaugeSystem에서 가져옴
-            // dangerGaugeSystem.isInSafeZone은 private이므로 직접 접근 불가.
-            // 필요하다면 public 프로퍼티로 노출해야 함. 여기서는 디버그 정보이므로 일단 false로 둠.
-        }
-        return $"IsDead: {isDead}, LastSafeZone: {(lastSafeZone != null ? lastSafeZone.name : "None")}";
+        return $"IsDead: {isDead}, CurrentSector: {(CurrentSector != null ? CurrentSector.SectorName : "None")}";
     }
 }

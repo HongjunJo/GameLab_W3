@@ -170,9 +170,13 @@ public class InteractionPortal : MonoBehaviour
             }
         }
         
-        // 안정화 대기 (페이드 아웃과 인 사이)
-        yield return new WaitForSeconds(0.1f);
-        
+        // 텔레포트 후 현재 위치의 안전지대 상태를 즉시 확인합니다.
+        DangerGaugeSystem dangerSystem = player.GetComponent<DangerGaugeSystem>();
+        if (dangerSystem != null)
+        {
+            dangerSystem.IsPlayerInSafeZone();
+        }
+
         // 페이드 인 (화면이 다시 보임)
         yield return StartCoroutine(FadeScreen(false));
         
@@ -181,7 +185,7 @@ public class InteractionPortal : MonoBehaviour
         
         // 텔레포트 완료, 공유 쿨타임은 이미 시작됨
         isTeleporting = false;
-        
+
         Debug.Log($"=== 포탈 텔레포트 완료! 공유 쿨타임 진행 중 ===");
     }
     
@@ -299,11 +303,11 @@ public class InteractionPortal : MonoBehaviour
         
         Debug.Log("=== 포탈: 플레이어 제어 완전 비활성화 시작 ===");
         
-        // InputManager의 TestDisable 메서드 사용 (전역 입력 비활성화)
-        if (InputManager.Instance != null)
+        // MovementLimiter를 통해 이동을 막습니다.
+        if (MovementLimiter.Instance != null)
         {
-            InputManager.Instance.TestDisable();
-            Debug.Log("포탈: InputManager.TestDisable() 호출");
+            MovementLimiter.Instance.SetCanMove(false);
+            Debug.Log("포탈: MovementLimiter를 통해 이동 비활성화");
         }
         
         // Rigidbody2D 완전 정지
@@ -347,6 +351,14 @@ public class InteractionPortal : MonoBehaviour
     private IEnumerator DelayedControlRestore()
     {
         yield return new WaitForSeconds(0.1f); // 최소한의 대기로 변경
+
+        // 플레이어가 죽은 상태라면 제어를 복구하지 않고 코루틴을 즉시 종료합니다.
+        PlayerStatus status = player.GetComponent<PlayerStatus>();
+        if (status != null && status.IsDead)
+        {
+            Debug.Log("포탈: 플레이어가 사망하여 제어 복구를 중단합니다.");
+            yield break;
+        }
         
         // CharacterMove 상태 완전 초기화
         CharacterMove characterMove = player.GetComponent<CharacterMove>();
@@ -376,13 +388,9 @@ public class InteractionPortal : MonoBehaviour
         }
         
         // InputManager의 TestAble 메서드 사용 (전역 입력 활성화)
-        if (InputManager.Instance != null)
-        {
-            InputManager.Instance.TestAble();
-            Debug.Log("포탈: InputManager.TestAble() 호출");
-        }
+        MovementLimiter.Instance?.SetCanMove(true);
         
-        Debug.Log("=== 포탈: 플레이어 제어 완전 활성화 완료 ===");
+        Debug.Log("=== 포탈: 플레이어 제어 완전 활성화 완료 (MovementLimiter) ===");
     }
     
     /// <summary>

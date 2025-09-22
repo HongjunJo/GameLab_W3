@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// 안전지대 밖에서 지속적인 HP 감소를 처리하는 시스템
+/// 안전지대 밖에서 지속적인 위험도 증가를 처리하는 시스템
 /// </summary>
 public class HPDrainSystem : MonoBehaviour
 {
@@ -20,7 +20,6 @@ public class HPDrainSystem : MonoBehaviour
     [SerializeField] private float timeSinceLeftSafeZone = 0f;
     [SerializeField] private bool isDraining = false;
     
-    private Health playerHealth;
     private PlayerStatus playerStatus;
     private DangerGaugeSystem dangerGaugeSystem; // DangerGaugeSystem 참조 추가
     private float drainTimer = 0f;
@@ -39,18 +38,12 @@ public class HPDrainSystem : MonoBehaviour
             return;
         }
         
-        playerHealth = playerObject.GetComponent<Health>();
         playerStatus = playerObject.GetComponent<PlayerStatus>();
         dangerGaugeSystem = playerObject.GetComponent<DangerGaugeSystem>(); // 컴포넌트 가져오기
         
-        if (playerHealth == null)
+        if (dangerGaugeSystem == null)
         {
-            Debug.LogError("HPDrainSystem: Health component not found on Player object!");
-        }
-        
-        if (playerStatus == null)
-        {
-            Debug.LogError("HPDrainSystem: PlayerStatus component not found on Player object!");
+            Debug.LogWarning("HPDrainSystem: DangerGaugeSystem not found on Player. This system will be disabled by SystemTransitionManager if not used.");
         }
 
         // DangerGaugeSystem이 활성화된 경우, 이 시스템은 비활성화되어야 함
@@ -75,16 +68,11 @@ public class HPDrainSystem : MonoBehaviour
     private void Update()
     {
         // DangerGaugeSystem이 활성화된 경우 이 시스템은 작동하지 않음
-        if (!enableDrain || playerStatus == null || playerHealth == null || (dangerGaugeSystem != null && dangerGaugeSystem.enabled)) return;
+        // SystemTransitionManager에 의해 제어되므로, 여기서는 기본적인 활성화 여부와 상태만 체크합니다.
+        if (!enableDrain || playerStatus == null || dangerGaugeSystem == null) return;
         
-        // 안전지대에 있거나 죽었다면 드레인하지 않음
-        // PlayerStatus에 IsInSafeZone이 없으므로, 이 시스템은 DangerGaugeSystem과 함께 사용되지 않는다고 가정
-        // 만약 함께 사용해야 한다면, DangerGaugeSystem의 상태를 확인해야 함
-        // 여기서는 PlayerStatus에 IsInSafeZone이 있었다는 가정 하에, 해당 기능을 제거했으므로 관련 로직을 수정해야 함
-        // 하지만 HPDrainSystem은 DangerGaugeSystem과 함께 쓰이지 않으므로, 기존 로직을 유지하되 PlayerStatus의 IsInSafeZone을 다시 만들어야 함.
-        // 그러나 이전 요청에서 PlayerStatus의 IsInSafeZone을 제거했으므로, 이 스크립트가 더 이상 정상 작동하지 않는 것이 맞음.
-        // SystemTransitionManager에 의해 비활성화되므로, Update 로직 자체를 건너뛰게 하는 것이 가장 안전함.
-        if (playerStatus.IsDead) return;
+        // 플레이어가 죽었거나, 안전지대에 있다면 위험도 증가 로직을 실행하지 않습니다.
+        if (playerStatus.IsDead || dangerGaugeSystem.IsInSafeZone) return;
         
         // 안전지대를 벗어난 시간 계산
         timeSinceLeftSafeZone += Time.deltaTime;
@@ -97,7 +85,7 @@ public class HPDrainSystem : MonoBehaviour
             
             if (drainTimer >= drainInterval)
             {
-                DamagePlayer();
+                IncreasePlayerDanger();
                 drainTimer = 0f;
             }
         }
@@ -108,14 +96,14 @@ public class HPDrainSystem : MonoBehaviour
     }
     
     /// <summary>
-    /// 플레이어에게 데미지를 가함
+    /// 플레이어의 위험도를 증가시킴
     /// </summary>
-    private void DamagePlayer()
+    private void IncreasePlayerDanger()
     {
-        if (playerHealth != null && playerHealth.IsAlive)
+        if (dangerGaugeSystem != null && dangerGaugeSystem.IsAlive)
         {
-            playerHealth.TakeDamage(drainAmount);
-            Debug.Log($"HP drained! -{drainAmount} (Time outside: {timeSinceLeftSafeZone:F1}s)");
+            dangerGaugeSystem.IncreaseDanger(drainAmount);
+            Debug.Log($"Danger increased! +{drainAmount} (Time outside: {timeSinceLeftSafeZone:F1}s)");
         }
     }
     
@@ -127,7 +115,7 @@ public class HPDrainSystem : MonoBehaviour
         timeSinceLeftSafeZone = 0f;
         drainTimer = 0f;
         isDraining = false;
-        Debug.Log("HP drain stopped - entered safe zone");
+        Debug.Log("Danger increase stopped - entered safe zone");
     }
     
     /// <summary>
@@ -138,7 +126,7 @@ public class HPDrainSystem : MonoBehaviour
         timeSinceLeftSafeZone = 0f;
         drainTimer = 0f;
         isDraining = false;
-        Debug.Log($"Left safe zone - HP drain will start in {gracePeriod} seconds");
+        Debug.Log($"Left safe zone - Danger increase will start in {gracePeriod} seconds");
     }
     
     /// <summary>
@@ -148,7 +136,7 @@ public class HPDrainSystem : MonoBehaviour
     {
         drainAmount = newDrainAmount;
         drainInterval = newDrainInterval;
-        Debug.Log($"HP drain settings updated: {drainAmount} damage every {drainInterval} seconds");
+        Debug.Log($"Danger increase settings updated: {drainAmount} every {drainInterval} seconds");
     }
     
     /// <summary>
@@ -161,7 +149,7 @@ public class HPDrainSystem : MonoBehaviour
         {
             StopDrain();
         }
-        Debug.Log($"HP drain {(enabled ? "enabled" : "disabled")}");
+        Debug.Log($"Danger drain {(enabled ? "enabled" : "disabled")}");
     }
     
     /// <summary>
