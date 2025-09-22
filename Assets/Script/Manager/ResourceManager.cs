@@ -28,6 +28,10 @@ public class ResourceManager : MonoBehaviour
     [Header("Debug - Current Resources")]
     [SerializeField] private List<ResourceDisplay> debugResources = new List<ResourceDisplay>();
     
+    [Header("Debug - Test Resources")]
+    [Tooltip("F8 키를 눌렀을 때 지급할 테스트 자원 목록입니다.")]
+    [SerializeField] private List<ResourceCost> testResources = new List<ResourceCost>();
+
     private Dictionary<MineralData, int> resources = new Dictionary<MineralData, int>();
     
     [System.Serializable]
@@ -53,6 +57,22 @@ public class ResourceManager : MonoBehaviour
         // 게임 시작 시 초기 자원 상태를 UI에 알림
         GameEvents.ResourceChanged(new Dictionary<MineralData, int>(resources));
         Debug.Log("ResourceManager initialized - initial resources sent to UI");
+    }
+
+    private void Update()
+    {
+        // 디버그용: F8 키를 누르면 테스트 자원을 지급합니다.
+        if (Input.GetKeyDown(KeyCode.F8))
+        {
+            Debug.Log("[DEBUG] F8 키 입력 감지. 테스트 자원을 지급합니다.");
+            foreach (var item in testResources)
+            {
+                if (item.mineral != null && item.amount > 0)
+                {
+                    AddResource(item.mineral, item.amount);
+                }
+            }
+        }
     }
     
     /// <summary>

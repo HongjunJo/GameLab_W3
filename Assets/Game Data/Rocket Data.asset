@@ -20,7 +20,7 @@ MonoBehaviour:
   - mineral: {fileID: 11400000, guid: a06f94d1a759a224e9783a641a89f609, type: 2}
     amount: 5
   - mineral: {fileID: 11400000, guid: 2e758906a31b1584d9b97a86467aff6c, type: 2}
-    amount: 5
+    amount: 10
   - mineral: {fileID: 11400000, guid: d3ec77b4df1af434fb0964be299cb92b, type: 2}
     amount: 3
   electricityCost: 1

@@ -11,11 +11,13 @@ public class PlayerStatus : MonoBehaviour
     public RespawnSector CurrentSector { get; private set; }
     
     private DangerGaugeSystem dangerGaugeSystem;
+    private TemporaryInventory tempInventory;
     
     private void Awake()
     {
         // Start에서 다시 체크하므로 Awake에서는 경고만 출력
         CheckComponents();
+        tempInventory = GetComponent<TemporaryInventory>();
     }
     
     private void Start()
@@ -64,6 +66,12 @@ public class PlayerStatus : MonoBehaviour
     private void HandlePlayerDeath()
     {
         isDead = true;
+
+        // 임시 인벤토리가 있다면, 내용물을 모두 잃고 리스폰 처리
+        if (tempInventory != null)
+        {
+            tempInventory.ClearAndRespawnAll();
+        }
         Debug.Log("PlayerStatus: Player death detected");
         
         // DangerGaugeSystem이 있다면 리스폰 처리는 해당 시스템에서 담당
@@ -75,27 +83,34 @@ public class PlayerStatus : MonoBehaviour
     }
     
     /// <summary>
-    /// 플레이어가 새로운 리스폰 섹터에 진입했을 때 호출됩니다.
+    /// 플레이어가 리스폰 섹터 안에 있을 때 매 프레임 호출됩니다.
     /// </summary>
-    public void EnterRespawnSector(RespawnSector sector)
+    public void UpdateCurrentSector(RespawnSector sector)
     {
-        // 새로운 섹터에 진입하면 현재 섹터로 설정
-        CurrentSector = sector;
-        Debug.Log($"플레이어가 '{sector.SectorName}' 섹터에 진입했습니다. 리스폰 포인트: {sector.RespawnPoint.name}");
+        // 현재 섹터가 변경될 때만 로그를 출력하여 중복을 방지합니다.
+        if (CurrentSector != sector)
+        {
+            CurrentSector = sector;
+
+            // 메인 섹터에 진입하면 임시 인벤토리의 자원을 모두 저장합니다.
+            if (sector.isMainSector && tempInventory != null)
+            {
+                Debug.Log($"메인 섹터 '{sector.SectorName}' 진입. 임시 자원을 저장합니다.");
+                tempInventory.DepositAllToMainInventory();
+            }
+            Debug.Log($"플레이어가 '{sector.SectorName}' 섹터에 진입했습니다. 리스폰 포인트: {sector.RespawnPoint.name}");
+        }
+        
     }
 
     /// <summary>
-    /// 플레이어가 리스폰 섹터에서 나갔을 때 호출됩니다. (RespawnSector의 OnTriggerExit2D에서 호출)
+    /// 플레이어가 리스폰 섹터에서 벗어났을 때 호출됩니다.
     /// </summary>
-    public void ExitRespawnSector(RespawnSector sector)
+    public void ClearCurrentSector()
     {
-        // 현재 플레이어가 속해있다고 기록된 섹터에서 나가는 경우에만 CurrentSector를 null로 설정합니다.
-        // 또한, 플레이어가 사망한 상태에서는 리스폰 위치 정보를 유지하기 위해 이 로직을 건너뜁니다.
-        if (CurrentSector == sector && !isDead)
-        {
-            CurrentSector = null;
-            Debug.Log($"플레이어가 '{sector.SectorName}' 섹터에서 나갔습니다. 현재 섹터가 없습니다.");
-        }
+        if (CurrentSector == null) return;
+        Debug.Log($"플레이어가 '{CurrentSector.SectorName}' 섹터에서 벗어났습니다.");
+        CurrentSector = null;
     }
     
     /// <summary>

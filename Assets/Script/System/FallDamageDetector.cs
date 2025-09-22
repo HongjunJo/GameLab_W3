@@ -116,6 +116,15 @@ public class FallDamageDetector : MonoBehaviour
             // 이 메서드 호출 즉시 DangerGaugeSystem의 Die() -> FreezePlayer()가 실행되어
             // Rigidbody가 Kinematic으로 변경되고 그 자리에 멈추게 됩니다.
             dangerSystem.KillPlayer("Fell into a hazard"); 
+
+        // 점프 상태를 즉시 리셋하여, 사망 직전의 점프 입력이 리스폰 후 적용되는 것을 방지합니다.
+        CharacterJump characterJump = player.GetComponentInParent<CharacterJump>();
+        if (characterJump != null)
+        {
+            characterJump.ResetJumpState();
+            if (showDebugLogs) Debug.Log("CharacterJump 상태를 리셋하여 '사망 점프' 버그를 방지합니다.");
+        }
+
             if (showDebugLogs)
             {
                 Debug.Log("DangerGaugeSystem.KillPlayer() 호출 완료. 사망 및 프리징 처리를 위임합니다.");

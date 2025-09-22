@@ -14,8 +14,12 @@ public class RespawnSector : MonoBehaviour
     [Tooltip("이 섹터의 이름입니다. (디버그용)")]
     [SerializeField] private string sectorName = "Sector";
 
+    [Tooltip("이 섹터가 메인 섹터인지 여부입니다. 메인 섹터에 진입 시 임시 자원이 저장됩니다.")]
+    public bool isMainSector = false;
+
     [Header("Visuals")]
     [SerializeField] private Color gizmoColor = new Color(0f, 0.5f, 1f, 0.3f); // 파란색 계열
+
 
     public Transform RespawnPoint => respawnPoint;
     public string SectorName => sectorName;
@@ -43,7 +47,8 @@ public class RespawnSector : MonoBehaviour
             PlayerStatus status = other.GetComponent<PlayerStatus>();
             if (status != null)
             {
-                status.EnterRespawnSector(this);
+                // 플레이어가 섹터에 진입하면 현재 섹터 정보를 갱신합니다.
+                status.UpdateCurrentSector(this);
             }
         }
     }
@@ -53,9 +58,10 @@ public class RespawnSector : MonoBehaviour
         if (other.CompareTag("Player"))
         {
             PlayerStatus status = other.GetComponent<PlayerStatus>();
-            if (status != null)
+            // 플레이어가 현재 이 섹터를 자신의 CurrentSector로 등록해 놓은 경우에만 초기화합니다.
+            if (status != null && status.CurrentSector == this)
             {
-                status.ExitRespawnSector(this);
+                status.ClearCurrentSector();
             }
         }
     }

@@ -15,12 +15,6 @@ MonoBehaviour:
   recipeName: 
   description: 
   resourceCosts:
-  - mineral: {fileID: 11400000, guid: afa0c6676f8e0bd40a8ed55614a5641b, type: 2}
-    amount: 5
-  - mineral: {fileID: 11400000, guid: d4faacb5762670b4ab25be6bfa77dc8b, type: 2}
-    amount: 5
-  - mineral: {fileID: 11400000, guid: a06f94d1a759a224e9783a641a89f609, type: 2}
-    amount: 5
   - mineral: {fileID: 11400000, guid: 2e758906a31b1584d9b97a86467aff6c, type: 2}
     amount: 5
   electricityCost: 0

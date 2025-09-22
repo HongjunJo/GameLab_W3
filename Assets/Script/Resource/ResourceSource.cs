@@ -138,10 +138,18 @@ public class ResourceSource : MonoBehaviour, IInteractable
         if (isDepleted) return;
         isDepleted = true;
         
-        // ResourceManager에 자원 추가
-        if (ResourceManager.Instance != null)
+        // 플레이어의 임시 인벤토리를 찾습니다.
+        GameObject player = GameObject.FindGameObjectWithTag("Player");
+        TemporaryInventory tempInventory = player?.GetComponent<TemporaryInventory>();
+
+        if (tempInventory != null)
         {
-            ResourceManager.Instance.AddResource(mineralData, amount);
+            // 임시 인벤토리에 자원과 출처(자기 자신)를 함께 추가합니다.
+            tempInventory.AddResource(mineralData, amount, this);
+        }
+        else
+        {
+            Debug.LogError("플레이어에 TemporaryInventory 컴포넌트가 없습니다! 자원을 임시 저장할 수 없습니다.");
         }
         
         if (progressUI != null)
@@ -150,7 +158,6 @@ public class ResourceSource : MonoBehaviour, IInteractable
         }
 
         Debug.Log($"채집 완료! {mineralData.mineralName} {amount}개를 획득했습니다.");
-        
         // 오브젝트를 파괴하는 대신 재생성 코루틴을 시작합니다.
         StartCoroutine(RespawnCoroutine());
     }
@@ -171,14 +178,7 @@ public class ResourceSource : MonoBehaviour, IInteractable
             // 설정된 시간만큼 대기
             yield return new WaitForSeconds(mineralData.respawnTime);
 
-            // 자원 상태 및 시각/물리적 요소 초기화
-            isDepleted = false;
-            currentHp = mineralData.maxHp;
-            currentHoldTime = 0f; // 홀드 시간을 초기화하여 UI 표시 오류 수정
-            if (visualObject != null) visualObject.SetActive(true);
-            GetComponent<Collider2D>().enabled = true;
-
-            Debug.Log($"{mineralData.mineralName} 재생성 완료!");
+            ResetResource();
         }
         
         else
@@ -187,6 +187,33 @@ public class ResourceSource : MonoBehaviour, IInteractable
             Debug.Log($"{mineralData.mineralName}이(가) 재생성되지 않고 비활성화됩니다.");
             gameObject.SetActive(false);
         }
+    }
+
+    /// <summary>
+    /// 자원 상태를 초기화하고 다시 채집 가능하게 만듭니다.
+    /// </summary>
+    private void ResetResource()
+    {
+        isDepleted = false;
+        currentHp = mineralData.maxHp;
+        currentHoldTime = 0f;
+        if (visualObject != null) visualObject.SetActive(true);
+        GetComponent<Collider2D>().enabled = true;
+
+        Debug.Log($"{mineralData.mineralName} 재생성 완료!");
+    }
+
+    /// <summary>
+    /// 외부에서 자원을 강제로 리스폰시킬 때 호출됩니다 (예: 플레이어 사망).
+    /// </summary>
+    public void ForceRespawn()
+    {
+        // 오브젝트가 비활성화된 상태일 수 있으므로, 먼저 활성화합니다.
+        // respawnTime이 0이어서 비활성화된 경우를 처리하기 위함입니다.
+        gameObject.SetActive(true);
+
+        StopAllCoroutines(); // 진행 중인 리스폰 코루틴이 있다면 중지
+        ResetResource();
     }
 
     /// <summary>

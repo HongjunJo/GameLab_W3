@@ -84,7 +84,7 @@ public class BuildingRecipe : ScriptableObject
         {
             if (electricityCost > 0)
             {
-                return $"Power: {PowerManager.Instance.CurrentPower:F0}";
+                return $"Power: {PowerManager.Instance.CurrentPower:F0}/{electricityCost:F0}";
             }
             return "No resource cost";
         }
@@ -99,7 +99,7 @@ public class BuildingRecipe : ScriptableObject
         if (electricityCost > 0)
         {
             if (sb.Length > 0) sb.Append(", ");
-            sb.Append($"Power: {PowerManager.Instance.CurrentPower:F0}");
+            sb.Append($"Power: {PowerManager.Instance.CurrentPower:F0}/{electricityCost:F0}");
         }
         return sb.ToString();
     }

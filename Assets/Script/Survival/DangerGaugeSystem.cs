@@ -187,6 +187,13 @@ public class DangerGaugeSystem : MonoBehaviour
         // 플레이어 사망 이벤트 발생
         GameEvents.PlayerDied();
         
+        // 사망 직전의 점프 입력을 포함한 모든 점프 상태를 즉시 리셋합니다.
+        if (characterJump != null)
+        {
+            characterJump.ResetJumpState();
+            Debug.Log("사망 처리 시작: CharacterJump 상태를 리셋하여 원치 않는 점프를 방지합니다.");
+        }
+
         // 플레이어 제어 비활성화 및 프리징
         DisablePlayerControl();
         FreezePlayer();
@@ -215,6 +222,7 @@ public class DangerGaugeSystem : MonoBehaviour
         if (playerRb != null)
         {
             playerRb.linearVelocity = Vector2.zero;
+            playerRb.angularVelocity = 0f;
         }
     }
     

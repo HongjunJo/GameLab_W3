@@ -64,7 +64,7 @@ public class Rocket : MonoBehaviour, IInteractable
     {
         if (isActivated)
         {
-            return $"{activationRecipe.recipeName} (Ready)";
+            return $"{activationRecipe.recipeName} (CLEAR!)";
         }
 
         string costText = activationRecipe.GetCostAsString();

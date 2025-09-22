@@ -8,6 +8,7 @@ public class CharacterJump : MonoBehaviour
 {
     [Header("Components")]
     public Rigidbody2D rb;
+    private PlayerStatus playerStatus; // 추가
     private CharacterGroundCheck ground;
     public Vector2 velocity;
     private CharacterJuice juice;
@@ -57,6 +58,7 @@ public class CharacterJump : MonoBehaviour
         rb = GetComponent<Rigidbody2D>();
         ground = GetComponent<CharacterGroundCheck>();
         juice = GetComponent<CharacterJuice>();
+        playerStatus = GetComponent<PlayerStatus>(); // 추가
         move = GetComponent<CharacterMove>();
         defaultGravityScale = 1f;
     }
@@ -83,7 +85,8 @@ public class CharacterJump : MonoBehaviour
 
     public void OnJump()
     {
-        if (MovementLimiter.Instance.CharacterCanMove)
+        // 플레이어가 살아있고, 움직일 수 있을 때만 점프 입력을 받습니다.
+        if (MovementLimiter.Instance.CharacterCanMove && (playerStatus == null || !playerStatus.IsDead))
         {
             desiredJump = true;
             pressingJump = true;
@@ -92,7 +95,8 @@ public class CharacterJump : MonoBehaviour
 
     public void OffJump()
     {
-        if (MovementLimiter.Instance.CharacterCanMove)
+        // 플레이어가 살아있고, 움직일 수 있을 때만 점프 입력을 받습니다.
+        if (MovementLimiter.Instance.CharacterCanMove && (playerStatus == null || !playerStatus.IsDead))
         {
             pressingJump = false;
         }
